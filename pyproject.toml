@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "xp-coding-agent"
+version = "0.1.0"
+description = "A local, evidence-gated XP coding agent"
+requires-python = ">=3.11"
+dependencies = ["langgraph>=1.2.15,<2"]
+
+[project.scripts]
+xp-agent = "xp_agent.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8.3,<10"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.hatch.build.targets.wheel]
+packages = ["xp_agent"]
+
+[tool.hatch.build.targets.sdist]
+include = ["xp_agent", "tests", "evals", "docs", "README.md", "pyproject.toml", "uv.lock", "Dockerfile.tests"]

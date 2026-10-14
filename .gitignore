@@ -1,0 +1,20 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*credentials*
+auth.json
+.xp-runs/
+eval-results/
+*.egg-info/
+dist/
+build/
+.DS_Store
+# Local planning notes contain machine paths and company context.
+xp-coding-agent-plan*.md
