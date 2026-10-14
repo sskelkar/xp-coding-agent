@@ -1,0 +1,97 @@
+README.md
+  s_75998acac156dd::t_9eaf4252333f64 1-14,16-78
+  s_75998acac156dd::t_585823cc49416a 15
+.github/workflows/test.yml
+  s_75998acac156dd::t_9eaf4252333f64 1-17
+tests/test_evals.py
+  s_75998acac156dd::t_e219bd9efc0818 1-10
+evals/fixtures/counter/test_calc.py
+  s_75998acac156dd::t_a4a4328ca105fa 1-5
+xp_agent/backend.py
+  s_75998acac156dd::t_30d7d0e638ffd5 10-11,25,27,50-51,53,56
+  s_75998acac156dd::t_df8abd8f61a606 1-9,12-24,26,28-49,52,54-55,57-109
+tests/test_cli.py
+  s_75998acac156dd::t_1c45f8ca02024b 1-19
+xp_agent/__init__.py
+  s_75998acac156dd::t_e644e1de8cda31 1
+xp_agent/sandbox.py
+  s_75998acac156dd::t_d31e9880735caf 1-37,40,42-44,46-65,67-84
+  s_75998acac156dd::t_a41c42b93972da 38,45
+  s_75998acac156dd::t_15e2042ef0d0c4 39,41,66
+docs/evaluation.md
+  s_75998acac156dd::t_9eaf4252333f64 1-16
+  s_75998acac156dd::t_b8f1603cab3720 17-25
+xp_agent/workflow.py
+  s_75998acac156dd::t_15e2042ef0d0c4 58,65,116
+  s_75998acac156dd::t_e77c33317f3240 1-31,33-57,59-64,66-78,80-115,117-123
+  s_75998acac156dd::t_a905d327271123 32
+  s_75998acac156dd::t_0f52369e7cd2d2 79
+xp_agent/project.py
+  s_75998acac156dd::t_b4e4188de76c8f 1-160
+pyproject.toml
+  s_75998acac156dd::t_585823cc49416a 21-26
+  s_75998acac156dd::t_e644e1de8cda31 1-20
+docs/security.md
+  s_75998acac156dd::t_9eaf4252333f64 1-23
+Dockerfile.tests
+  s_75998acac156dd::t_a41c42b93972da 1-5
+docs/architecture.md
+  s_75998acac156dd::t_9eaf4252333f64 1-46
+xp_agent/__main__.py
+  s_75998acac156dd::t_aafbd30d6efcc3 1-2
+tests/test_sandbox.py
+  s_75998acac156dd::t_a41c42b93972da 1-39
+tests/test_project.py
+  s_75998acac156dd::t_21490e1d6debbb 1-44
+evals/fixtures/counter/README.md
+  s_75998acac156dd::t_a4a4328ca105fa 1-5
+xp_agent/policy.py
+  s_75998acac156dd::t_fd61033e6241c0 10-11,57-58,61-63
+  s_75998acac156dd::t_8339d25b7624a8 1-9,12-56,59-60,64-90
+tests/test_workflow.py
+  s_75998acac156dd::t_14451c56df7e17 76-83
+  s_75998acac156dd::t_a905d327271123 1-75
+xp_agent/cli.py
+  s_75998acac156dd::t_aafbd30d6efcc3 1-25,27-54,56-110
+  s_75998acac156dd::t_15e2042ef0d0c4 26
+  s_75998acac156dd::t_1c45f8ca02024b 55
+.dockerignore
+  s_75998acac156dd::t_d31e9880735caf 1-2
+xp_agent/evals.py
+  s_75998acac156dd::t_a4a4328ca105fa 1-46,48-81
+  s_75998acac156dd::t_e219bd9efc0818 47
+xp_agent/process.py
+  s_75998acac156dd::t_b3c2c688374bd6 10-11,18-19
+  s_75998acac156dd::t_0f52369e7cd2d2 52-53
+  s_75998acac156dd::t_2a2277b704b164 1-9,12-17,20-51,54-61
+tests/test_backend.py
+  s_75998acac156dd::t_30d7d0e638ffd5 1-21
+.gitignore
+  s_75998acac156dd::t_9eaf4252333f64 19-20
+  s_75998acac156dd::t_e644e1de8cda31 1-18
+tests/test_policy.py
+  s_75998acac156dd::t_e644e1de8cda31 1-46
+tests/test_process.py
+  s_75998acac156dd::t_b3c2c688374bd6 1-23
+  s_75998acac156dd::t_14451c56df7e17 24-28
+evals/fixtures/counter/calc.py
+  s_75998acac156dd::t_a4a4328ca105fa 1-2
+uv.lock
+  s_75998acac156dd::t_6273001ac01783 1-1322
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "455a63a37f1eee32af6036379ccd3f3bbe280a94",
+  "prompts": {},
+  "sessions": {
+    "s_75998acac156dd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13721-4cac-7491-9dcf-ae53dbf4aa26",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "sskelkar <sojjwal.kelkar@deliveryhero.com>"
+    }
+  }
+}
