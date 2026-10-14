@@ -3,12 +3,13 @@ import argparse
 import json
 from pathlib import Path
 import sys
-from .backend import CodexBackend
+from .backend import create_backend
 from .policy import PolicyError
 from .process import run
 from .project import create_plan, verify_approval, write_json, render_plan, make_workspace, write_files, git
 from .sandbox import DockerRunner
 from .workflow import execute
+from .reporting import render_report, source_divergence
 
 
 def heartbeat(seconds):
@@ -21,8 +22,9 @@ def perform_run(plan, output, backend=None):
         raise PolicyError('Output already exists; use a new run directory to preserve existing work')
     output.mkdir(parents=True, mode=0o700)
     write_json(output / 'approved-plan.json', plan)
+    (output / 'plan.md').write_text(render_plan(plan))
     root = make_workspace(output, plan['files'])
-    backend = backend or CodexBackend(plan['model'], status=heartbeat)
+    backend = backend or create_backend(plan.get('provider', 'codex'), plan['model'], plan.get('auth', 'cli'), status=heartbeat)
     runner = DockerRunner(plan['image'], scratch=output / 'scratch', status=heartbeat)
     previous = None
 
@@ -45,11 +47,20 @@ def perform_run(plan, output, backend=None):
     if state['status'] == 'verified' and diff:
         git(root, 'commit', '-m', 'Implement approved behavior through red-green-refactor')
     branch = git(root, 'branch', '--show-current').strip()
-    summary = f'# Run result: {state["status"]}\n\n{state["reason"]}\n\nBranch: `{branch}`\n\nReview `changes.patch` and `state.json`. Original project unchanged.\n'
+    divergence = source_divergence(plan)
+    write_json(output / 'divergence.json', divergence)
+    summary = render_report(plan, state, branch, divergence)
     (output / 'result.md').write_text(summary)
     print(summary)
     print(f'Results: {output}')
     return 0 if state['status'] == 'verified' else 2
+
+
+def backend_arguments(parser):
+    parser.add_argument('--provider', choices=('codex', 'claude'), default=None)
+    parser.add_argument('--model', help='Provider model ID or alias; default: gpt-6-luna for codex, haiku for claude')
+    parser.add_argument('--auth', choices=('cli', 'api-key', 'oauth-token'), default=None,
+                        help='Saved CLI credentials (default), provider API key, or Claude OAuth token environment variable')
 
 
 def main(argv=None):
@@ -61,7 +72,7 @@ def main(argv=None):
     plan_cmd.add_argument('--source', nargs='+', required=True)
     plan_cmd.add_argument('--tests', nargs='+', required=True)
     plan_cmd.add_argument('--read', nargs='*', default=[])
-    plan_cmd.add_argument('--model', default='gpt-6-luna')
+    backend_arguments(plan_cmd)
     plan_cmd.add_argument('--image', default='xp-agent-tests:0.1')
     plan_cmd.add_argument('--budget', type=int, default=600)
     plan_cmd.add_argument('--attempts', type=int, default=2)
@@ -71,18 +82,29 @@ def main(argv=None):
     run_cmd.add_argument('--approve', required=True, help='Full approval ID printed in plan.md')
     run_cmd.add_argument('--output', type=Path, required=True)
     eval_cmd = commands.add_parser('eval', help='Disposable fixture evals; no credentials needed unless --live')
-    eval_cmd.add_argument('--live', action='store_true', help='Use configured Codex sign-in on synthetic code')
-    eval_cmd.add_argument('--model', default='gpt-6-luna')
+    eval_cmd.add_argument('--live', action='store_true', help='Use selected provider on synthetic code')
+    backend_arguments(eval_cmd)
     eval_cmd.add_argument('--output', type=Path, default=Path('eval-results/latest.json'))
-    args = parser.parse_args(argv)
+    repl_cmd = commands.add_parser('repl', help='Interactive coding shell (default when no subcommand is supplied)')
+    repl_cmd.add_argument('project', nargs='?', type=Path, default=Path.cwd())
+    backend_arguments(repl_cmd)
+    repl_cmd.add_argument('--budget', type=int, default=600)
+    repl_cmd.add_argument('--attempts', type=int, default=2)
+    actual = list(sys.argv[1:] if argv is None else argv)
+    if not actual or actual[0] not in {'plan','run','eval','repl','-h','--help'}:
+        actual.insert(0, 'repl')
+    args = parser.parse_args(actual)
     try:
+        if args.command == 'repl':
+            from .repl import shell
+            return shell(args.project,provider=args.provider,model=args.model,auth=args.auth,budget=args.budget,attempts=args.attempts)
         if args.command == 'plan':
             if args.output.exists():
                 raise PolicyError('Plan output exists; choose a new output path')
             image = run(['docker', 'image', 'inspect', args.image, '--format', '{{.Id}}'], timeout=10)
             if image.returncode:
                 raise PolicyError('Build Dockerfile.tests first; image is unavailable')
-            plan = create_plan(args.project, args.task, args.source, args.tests, CodexBackend(args.model, heartbeat),
+            plan = create_plan(args.project, args.task, args.source, args.tests, create_backend(args.provider or 'codex', args.model, args.auth or 'cli', status=heartbeat),
                                read_paths=args.read, budget=args.budget, attempts=args.attempts, image=image.stdout.strip())
             write_json(args.output, plan)
             markdown = args.output.with_suffix('.md')
@@ -94,7 +116,7 @@ def main(argv=None):
             verify_approval(plan, args.approve)
             return perform_run(plan, args.output)
         from .evals import evaluate
-        report = evaluate(live=args.live, model=args.model)
+        report = evaluate(live=args.live, model=args.model, provider=args.provider or 'codex', auth=args.auth or 'cli')
         write_json(args.output, report)
         print(json.dumps(report, indent=2))
         return 0 if report['passed'] else 2

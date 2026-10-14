@@ -3,12 +3,14 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import time
 import uuid
 from .policy import PolicyError, discover, digest, safe_path, check_content
 from .process import run
+from .backend import ProposalBackend
 
 
-def create_plan(project, task, source_paths, test_paths, backend, *, read_paths=(), budget=600, attempts=2, image='xp-agent-tests:0.1'):
+def create_plan(project, task, source_paths, test_paths, backend: ProposalBackend, *, read_paths=(), budget=600, attempts=2, image='xp-agent-tests:0.1'):
     project = Path(project).resolve()
     if not source_paths or not test_paths or set(source_paths) & set(test_paths):
         raise PolicyError('Select disjoint source and test paths')
@@ -27,12 +29,22 @@ def create_plan(project, task, source_paths, test_paths, backend, *, read_paths=
     if not set(source_paths).issubset(existing):
         raise PolicyError('Source files must exist; select a small existing behavior')
     files = discover(project, existing)
-    proposal = backend.propose('plan', {'task': task, 'source_paths': source_paths, 'test_paths': test_paths, 'files': files}, min(budget, 180))
-    if proposal.get('blocked'):
-        raise PolicyError(proposal['blocked'])
-    if proposal.get('edits') or not proposal.get('acceptance') or not proposal.get('tradeoffs'):
-        raise PolicyError('Plan must include acceptance and tradeoffs, with no edits')
-    plan = dict(version=1, project=str(project), task=task, model=backend.model,
+    context = {'task':task,'source_paths':source_paths,'test_paths':test_paths,'files':files}
+    deadline = time.monotonic() + min(budget,180)
+    for attempt in range(attempts):
+        remaining = deadline-time.monotonic()
+        if remaining <= 0:
+            raise PolicyError('Planning deadline exceeded')
+        proposal = backend.propose('plan',context,remaining)
+        if proposal.get('blocked'):
+            raise PolicyError(proposal['blocked'])
+        if not proposal.get('edits') and proposal.get('acceptance') and proposal.get('tradeoffs'):
+            break
+        context['feedback'] = 'Planning only: return edits=[] and nonempty acceptance and tradeoffs. No code changes are authorized during planning.'
+    else:
+        raise PolicyError('Plan must include acceptance and tradeoffs, with no edits; planning attempt budget exhausted')
+    plan = dict(version=2, project=str(project), task=task, model=backend.model,
+                provider=getattr(backend, 'provider', 'codex'), auth=getattr(backend, 'auth', 'cli'),
                 source_paths=source_paths, test_paths=test_paths, read_paths=existing,
                 missing_paths=sorted(paths - set(existing)), files=files,
                 acceptance=proposal['acceptance'], tradeoffs=proposal['tradeoffs'],
@@ -48,7 +60,8 @@ def verify_approval(plan, approval_id):
     if digest(body) != approval_id or plan.get('approval_id') != approval_id:
         raise PolicyError('Approval does not match the exact plan')
     if discover(Path(plan['project']), plan['read_paths']) != plan['files'] or any(
-            (Path(plan['project']) / p).exists() for p in plan['missing_paths']):
+            ((Path(plan['project']) / p).exists() or (Path(plan['project']) / p).is_symlink())
+            for p in plan['missing_paths']):
         raise PolicyError('Project changed since discovery; generate a fresh plan')
 
 
@@ -69,8 +82,9 @@ def write_json(path, value):
 
 def git(root, *args):
     env = {k: os.environ[k] for k in ('PATH', 'SYSTEMROOT') if k in os.environ}
-    env.update(GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL=os.devnull, GIT_TERMINAL_PROMPT='0')
-    result = run(['git', '-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgsign=false',
+    env['TMPDIR'] = '/private/tmp' if Path('/private/tmp').exists() else tempfile.gettempdir()
+    env.update(GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL=os.devnull, GIT_TERMINAL_PROMPT='0', GIT_ATTR_NOSYSTEM='1')
+    result = run(['git', '-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', '-c', 'core.attributesFile=/dev/null', '-c', 'commit.gpgsign=false',
                   '-c', 'user.name=XP Agent', '-c', 'user.email=xp-agent@localhost', *args],
                  cwd=root, env=env, timeout=15)
     if result.returncode:
@@ -112,9 +126,14 @@ Task: {plan['task']}
 Read: {', '.join(plan['read_paths'])}
 Source edits: {', '.join(plan['source_paths'])}
 Test edits: {', '.join(plan['test_paths'])}
+Provider: {plan.get('provider', 'codex')}; authentication: {plan.get('auth', 'cli')}
 Model: {plan['model']}; image: {plan['image']}
 Limits: {plan['max_attempts']} attempts per phase; {plan['budget_seconds']} seconds total.
-Only the selected snapshot is copied. Original files are never modified.
+Workspace strategy: {plan.get('workspace_kind', 'snapshot')}.
+Original project files are preserved; linked worktrees share Git metadata.
+Model context: {', '.join(plan.get('context_paths', plan['read_paths']))}
+Runtime files: {len(plan['files'])}; excluded paths: {', '.join(plan.get('excluded_paths', [])) or 'none'}.
+Git-project interactive runs exclude untracked files and require a clean tracked baseline.
 
 ## Alternatives and tradeoffs
 
@@ -136,16 +155,34 @@ Only the selected snapshot is copied. Original files are never modified.
 
 ```mermaid
 flowchart TD
-    H[Human approves this plan] --> C[Trusted controller]
-    C --> M[Hosted model proposes edits; no project execution]
-    M --> V[Controller validates phase and paths]
-    V --> T[Restricted container executes tests]
-    T --> G{{XP gate}}
-    G -->|Within-budget repair| M
-    G -->|Verified| N[Next approved phase]
-    G -->|Unsafe or blocked| H
-    N --> R[Final branch, diff and evidence]
+    D[Discover selected code and guidance] --> P[Generate reviewable plan]
+    P --> H[Human approves exact plan]
+    H --> W[Prepare approved worktree or snapshot]
+    W --> B{{Baseline tests pass?}}
+    B -->|No| X[Blocked: preserve accepted work]
+    B -->|Yes| R[RED: propose test additions]
+    R --> RG{{Valid edits and meaningful red?}}
+    RG -->|Retry available| R
+    RG -->|Exhausted| X
+    RG -->|Yes| G[GREEN: propose source changes]
+    G --> GG{{Valid edits and required tests pass?}}
+    GG -->|Retry available| G
+    GG -->|Exhausted| X
+    GG -->|Yes| F[REFACTOR: source changes or justified no-op]
+    F --> FG{{Valid edits and required tests pass?}}
+    FG -->|Retry available| F
+    FG -->|Exhausted| X
+    FG -->|Yes| V{{Independent final tests pass?}}
+    V -->|No| X
+    V -->|Yes| OK[Verified: human acceptance pending]
+    E[Provider blocker, execution error or deadline] --> X
+    C[Handled cancellation] --> STOP[Cancelled: preserve accepted work]
+    OK --> O[Plan, report, patch and evidence]
+    X --> O
+    STOP --> O
 ```
+
+This diagram shows one increment; interactive sessions repeat the cycle for each approved increment using the remaining session budget. Batch runs execute one cycle.
 
 ## Implementation increments
 

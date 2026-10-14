@@ -11,6 +11,7 @@ dependencies = ["langgraph>=1.2.15,<2"]
 
 [project.scripts]
 xp-agent = "xp_agent.cli:main"
+xp-coding-agent = "xp_agent.cli:main"
 
 [dependency-groups]
 dev = ["pytest>=8.3,<10"]
@@ -23,4 +24,4 @@ pythonpath = ["."]
 packages = ["xp_agent"]
 
 [tool.hatch.build.targets.sdist]
-include = ["xp_agent", "tests", "evals", "docs", "README.md", "pyproject.toml", "uv.lock", "Dockerfile.tests"]
+include = ["xp_agent", "tests", "evals", "docs", "README.md", "AGENTS.md", "pyproject.toml", "uv.lock", "Dockerfile.tests"]

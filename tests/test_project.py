@@ -42,3 +42,41 @@ def test_atomic_records_are_private(tmp_path):
     write_json(path, {'status': 'running'})
     assert json.loads(path.read_text())['status'] == 'running'
     assert path.stat().st_mode & 0o077 == 0
+
+
+def test_provider_and_auth_are_bound_to_approval(tmp_path):
+    from xp_agent.project import render_plan
+    (tmp_path / 'calc.py').write_text('x = 1\n')
+    planner = Planner()
+    planner.provider, planner.model, planner.auth = 'claude', 'sonnet', 'cli'
+    plan = create_plan(tmp_path, 'Double', ['calc.py'], ['test_calc.py'], planner)
+    assert plan.get('provider') == 'claude'
+    assert plan.get('auth') == 'cli'
+    assert 'Provider: claude' in render_plan(plan)
+    changed = {**plan, 'provider': 'codex'}
+    with pytest.raises(PolicyError, match='Approval'):
+        verify_approval(changed, plan['approval_id'])
+
+
+def test_new_broken_symlink_invalidates_approval(tmp_path):
+    (tmp_path / 'calc.py').write_text('x = 1\n')
+    plan = create_plan(tmp_path, 'Double', ['calc.py'], ['test_calc.py'], Planner())
+    (tmp_path / 'test_calc.py').symlink_to(tmp_path / 'missing.py')
+    with pytest.raises(PolicyError, match='changed'):
+        verify_approval(plan, plan['approval_id'])
+
+
+def test_planning_repairs_an_invalid_proposal_with_explicit_feedback(tmp_path):
+    (tmp_path/'calc.py').write_text('x = 1\n')
+    class Repairing(Planner):
+        def __init__(self): self.calls=[]
+        def propose(self, phase, context, timeout):
+            self.calls.append(context)
+            if len(self.calls)==1:
+                return {'edits':[],'rationale':'Pending','blocked':'','acceptance':[],'tradeoffs':[]}
+            assert 'edits=[]' in context.get('feedback','')
+            return super().propose(phase,context,timeout)
+    backend=Repairing()
+    plan=create_plan(tmp_path,'Double',['calc.py'],['test_calc.py'],backend)
+    assert len(backend.calls)==2
+    assert plan['acceptance']

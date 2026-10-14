@@ -81,3 +81,33 @@ def test_refactor_no_change_rationale_is_recorded():
     state = execute(spec(), backend, Runner([result(), result(failed=('test_calc.py::test_two',)), green, green, green]))
     refactor = next(e for e in state['evidence'] if e['phase'] == 'refactor')
     assert refactor.get('rationale') == 'No further useful refactoring'
+
+
+def test_records_accepted_work_separately_from_rejected_attempts():
+    backend = Backend([change('calc.py', 'x = 2\n'), change('test_calc.py', TEST),
+                       change('calc.py', 'def double(x):\n    return x * 2\n'), change()])
+    green = result(passed=('test_calc.py::test_zero', 'test_calc.py::test_two'))
+    state = execute(spec(), backend, Runner([result(), result(failed=('test_calc.py::test_two',)), green, green, green]))
+    assert [c['phase'] for c in state.get('changes', [])] == ['red', 'green', 'refactor']
+    assert state['changes'][-1]['paths'] == []
+    assert state['rejections'][0]['phase'] == 'red'
+    assert 'may not edit' in state['rejections'][0]['reason']
+    assert all(e['accepted'] for e in state['evidence'])
+
+
+def test_resume_preserves_red_tests_and_remaining_attempt_budget():
+    backend = Backend([change('test_calc.py', TEST), change('calc.py', 'def double(x):\n    return x * 2\n'), change()])
+    class Interrupted(Runner):
+        def test(self, files, timeout):
+            if files['calc.py'] != BASE['calc.py']:
+                raise KeyboardInterrupt
+            return super().test(files, timeout)
+    first = execute(spec(), backend, Interrupted([result(), result(failed=('test_calc.py::test_two',))]))
+    assert first['status'] == 'cancelled'
+    green = result(passed=('test_calc.py::test_zero', 'test_calc.py::test_two'))
+    retry = Backend([change('calc.py', 'def double(x):\n    return x * 2\n'), change()])
+    resumed = execute(spec(), retry, Runner([green, green, green]), initial_state=first)
+    assert resumed['status'] == 'verified'
+    assert resumed['attempts']['green'] == 2
+    assert retry.phases == ['green', 'refactor']
+    assert resumed['remaining_seconds'] <= first['remaining_seconds']

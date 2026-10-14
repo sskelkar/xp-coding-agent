@@ -18,3 +18,40 @@ build/
 .DS_Store
 # Local planning notes contain machine paths and company context.
 xp-coding-agent-plan*.md
+
+# Local agent configuration, diagnostics and editor state (AGENTS.md is public).
+.codex/
+.claude/
+*.log
+*.log.*
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.tox/
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Credentials and private persistence; templates must contain placeholders only.
+*.p12
+*.pfx
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.sqlite3-*
+
+# Known source-bearing run artifacts, even if a custom output directory is used.
+approved-plan.json
+state.json
+session.json
+events.jsonl
+divergence.json
+changes.patch
+result.md
+/plan.json
+/plan.md
+
+# Historical local review; accepted follow-ups are maintained in docs/roadmap.md.
+/codex-review-notes-langgraph-xp.md

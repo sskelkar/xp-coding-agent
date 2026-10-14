@@ -37,3 +37,12 @@ def test_hung_container_is_removed():
     from xp_agent.process import ProcessError
     with pytest.raises(ProcessError):
         DockerRunner().test({'test_hung.py': 'def test_hung():\n    while True: pass\n'}, 2)
+
+
+def test_collection_skips_are_visible_to_xp_gates():
+    from xp_agent.workflow import passing
+    files = {'test_ok.py': 'def test_ok():\n    assert True\n',
+             'test_optional.py': 'import pytest\npytest.skip("missing prerequisite", allow_module_level=True)\n'}
+    report = DockerRunner().test(files, 30)
+    assert report['skipped']
+    assert not passing(report)

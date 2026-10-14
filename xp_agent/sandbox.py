@@ -27,6 +27,8 @@ class Reporter:
     def pytest_collectreport(self, report):
         if report.failed:
             self.data['errors'].append(str(report.nodeid))
+        elif report.skipped:
+            self.data['skipped'].append(str(report.nodeid))
 r = Reporter()
 code = pytest.main(['-q', '-p', 'no:cacheprovider', '/workspace'], plugins=[r])
 r.data['returncode'] = int(code)
