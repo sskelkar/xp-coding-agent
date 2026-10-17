@@ -46,7 +46,7 @@ flowchart TD
 
 The diagram shows one XP increment. The session controller repeats it for each approved increment using remaining budgets; `/resume` reconciles application records and enters the current phase. The REPL/discovery/session controller is the primary interface; batch runs retain their original orchestration.
 
-Error/cancellation paths above apply across phases and are handled by the Python supervisor; they are not extra LangGraph nodes. Setup failures can occur before final artifacts are available. See the [node-level graph](how-it-works.md#the-execution-graph) for the exact registered nodes.
+Error/cancellation paths above apply across phases and are handled by the Python supervisor; they are not extra LangGraph nodes. Setup failures can occur before final artifacts are available. See the [node-level graph](how-it-works.md#5-the-execution-graph) for the exact registered nodes.
 
 All test nodes cross into an unprivileged network-disabled container. The model crosses a separate hosted-inference boundary. The controller keeps accepted source and tests in memory; test containers receive a read-only materialized snapshot, without `.git` or approval records. Each model proposal is validated before any accepted checkout changes.
 
