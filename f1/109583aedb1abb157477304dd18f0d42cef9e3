@@ -1,0 +1,117 @@
+docs/evaluation.md
+  s_75998acac156dd::t_2b54d4d9bb6db8 75-84
+docs/observability-plan.md
+  s_75998acac156dd::t_81acd6c642a207 3-8,10-163,165-183
+  s_75998acac156dd::t_d69b14ac245674 9,164
+  s_75998acac156dd::t_1361abe8ccfcbb 1-2
+xp_agent/repl.py
+  s_75998acac156dd::t_47fc0df6dd4f0f 7,16,21,30-31,33-34,36-42,56-60,62,69,83,89-99
+  s_75998acac156dd::t_bf2d24bd8e01e9 32,35,102
+xp_agent/tracing/experiments.py
+  s_75998acac156dd::t_beb6f8a5cb4256 91-95,137-146,150,155
+  s_75998acac156dd::t_b410bae1364433 24,68-73,151
+  s_75998acac156dd::t_e628cc25db021d 55
+  s_75998acac156dd::t_1c374d09a88e47 1-23,25-54,56-67,74-90,96-99,102-107,127-136,147-149,152-154,156-163
+  s_75998acac156dd::t_01be3d56874d85 100-101,108-126
+xp_agent/evals.py
+  s_75998acac156dd::t_bf2d24bd8e01e9 5,48,78,93,97,108-139,143
+docs/security.md
+  s_75998acac156dd::t_1361abe8ccfcbb 32-39
+xp_agent/claude_backend.py
+  s_75998acac156dd::t_e628cc25db021d 65-66
+xp_agent/project.py
+  s_75998acac156dd::t_e94dce26ac4b68 38-40
+xp_agent/session.py
+  s_75998acac156dd::t_47fc0df6dd4f0f 6,64,90-91,123,140,152,197,211,240-242
+docs/providers.md
+  s_75998acac156dd::t_1361abe8ccfcbb 135-138
+xp_agent/backend.py
+  s_75998acac156dd::t_e628cc25db021d 156-158
+xp_agent/tracing/exporter.py
+  s_75998acac156dd::t_57303704e75958 51-55,119,168-169
+  s_75998acac156dd::t_e628cc25db021d 101-102
+  s_75998acac156dd::t_1c374d09a88e47 72-73,107,123-141,143,162
+  s_75998acac156dd::t_9e542b12dc4f92 1-50,56-71,74-100,103-106,108-117,120-122,163-167,170-174
+  s_75998acac156dd::t_5f3ba1392274f4 142
+  s_75998acac156dd::t_2b431a0395bef7 118,144-161
+docs/tracing.md
+  s_75998acac156dd::t_b410bae1364433 1-49,51-110,112-125
+  s_75998acac156dd::t_57303704e75958 50,111
+xp_agent/workflow.py
+  s_75998acac156dd::t_4cf90f5377b371 8-9,38,54-56,65-70,72-81,83,85,96,98,104-106,118,149,151
+  s_75998acac156dd::t_beb6f8a5cb4256 42,51,57-58,60,142
+  s_75998acac156dd::t_e94dce26ac4b68 59
+.github/workflows/test.yml
+  s_75998acac156dd::t_beb6f8a5cb4256 13,15
+.gitignore
+  s_75998acac156dd::t_beb6f8a5cb4256 58-60
+docs/how-it-works.md
+  s_75998acac156dd::t_1361abe8ccfcbb 499-544
+README.md
+  s_75998acac156dd::t_1361abe8ccfcbb 73,80,110-114
+  s_75998acac156dd::t_43090f12476292 115
+docs/architecture.md
+  s_75998acac156dd::t_1361abe8ccfcbb 16,66-67
+tests/test_tracing.py
+  s_75998acac156dd::t_1378a345a28802 61-108
+  s_75998acac156dd::t_3a3c65085ed1e6 148-165,167-174,177-186
+  s_75998acac156dd::t_35876ed51e0633 166,175-176
+  s_75998acac156dd::t_6aaf2bf6457e2b 257-294
+  s_75998acac156dd::t_81be3942153ffd 240-252,254-256
+  s_75998acac156dd::t_5f3ba1392274f4 253
+  s_75998acac156dd::t_43a24b0f7eca44 295-296,298-330,332
+  s_75998acac156dd::t_be774c94884f0e 123,128,130
+  s_75998acac156dd::t_58e7e4b6be4357 1,4-37
+  s_75998acac156dd::t_5dedd7c2dcc539 38-60
+  s_75998acac156dd::t_bed6536b717a09 187-193,195-197,199-227
+  s_75998acac156dd::t_dea0f5d577aa5a 194,198
+  s_75998acac156dd::t_0dd84fc7f449f1 228-239
+  s_75998acac156dd::t_4c37d16edfb3cd 109-122,124-127,129,131-147
+  s_75998acac156dd::t_6119dbda05b16a 333-355
+  s_75998acac156dd::t_04b1c6b9f55453 2-3,297,331
+xp_agent/tracing/__init__.py
+  s_75998acac156dd::t_56c95cddb42841 1-2,4-10,12-25,27-30,33-41,43-64,66-70,72-77,79,81-115,117-120,122-126,128-133,139-153,155-159
+  s_75998acac156dd::t_e628cc25db021d 171-182
+  s_75998acac156dd::t_e94dce26ac4b68 127,134-138
+  s_75998acac156dd::t_58e7e4b6be4357 3,11,31-32,42,71,78,80,116,121
+  s_75998acac156dd::t_57303704e75958 154
+  s_75998acac156dd::t_1c374d09a88e47 160-170
+  s_75998acac156dd::t_beb6f8a5cb4256 26
+  s_75998acac156dd::t_07826a47e0c25e 65
+xp_agent/tracing/evaluation.py
+  s_75998acac156dd::t_4cf90f5377b371 1-78
+  s_75998acac156dd::t_47fc0df6dd4f0f 79-91
+docs/roadmap.md
+  s_75998acac156dd::t_1361abe8ccfcbb 28-31
+xp_agent/cli.py
+  s_75998acac156dd::t_e94dce26ac4b68 7,94-97,105,112-113,123-132
+docs/batch-reference.md
+  s_75998acac156dd::t_2b54d4d9bb6db8 331-336
+pyproject.toml
+  s_75998acac156dd::t_0354dbd87e19eb 12-14
+tests/test_cli.py
+  s_75998acac156dd::t_2d79160335de26 112-117
+uv.lock
+  s_75998acac156dd::t_d1e95a8b3f1f5e 31-39,214-225,374-393,478-589,714-728,1228-1313,1322-1326,1333-1337
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "f1109583aedb1abb157477304dd18f0d42cef9e3",
+  "prompts": {},
+  "humans": {
+    "h_63c0bd0a7be43b": {
+      "author": "sskelkar <sojjwal.kelkar@deliveryhero.com>"
+    }
+  },
+  "sessions": {
+    "s_75998acac156dd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13721-4cac-7491-9dcf-ae53dbf4aa26",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "sskelkar <sojjwal.kelkar@deliveryhero.com>"
+    }
+  }
+}
