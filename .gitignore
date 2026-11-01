@@ -55,3 +55,6 @@ result.md
 
 # Historical local review; accepted follow-ups are maintained in docs/roadmap.md.
 /codex-review-notes-langgraph-xp.md
+
+# Metadata-only traces are private local run artifacts too.
+trace-*.json

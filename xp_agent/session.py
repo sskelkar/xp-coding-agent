@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import time
 import uuid
+from . import tracing
 from .policy import PolicyError, safe_path, discover, digest, check_content
 from .project import git, create_plan, verify_approval, write_files, write_json, make_workspace, render_plan
 
@@ -60,6 +61,7 @@ def require_safe_checkout(project):
             raise PolicyError('Git checkout filters require a separately validated workspace profile')
 
 
+@tracing.traced('discover-project')
 def prepare(project, task, backend, *, image, hints=(), budget=600, attempts=2, progress=print):
     project = Path(project).resolve()
     names, is_git = inventory(project)
@@ -85,7 +87,8 @@ def prepare(project, task, backend, *, image, hints=(), budget=600, attempts=2, 
     deadline = time.monotonic() + min(budget, 180)
     for turn in range(6):
         progress(f'Discovery round {turn + 1}: {len(context)} context files; {len(files)} safe runtime files')
-        selection = backend.select({'task': task, 'inventory': sorted(files), 'files': context}, max(0, deadline-time.monotonic()))
+        with tracing.observation('model.select','generation',phase='discovery',provider=backend.provider,model=backend.model,auth=backend.auth,usage_known=False,visibility='cli-aggregate'):
+            selection = backend.select({'task': task, 'inventory': sorted(files), 'files': context}, max(0, deadline-time.monotonic()))
         if set(selection) != set(SELECTION_SCHEMA['required']):
             raise PolicyError('Invalid discovery response')
         check_content(json.dumps(selection))
@@ -117,6 +120,7 @@ def prepare(project, task, backend, *, image, hints=(), budget=600, attempts=2, 
     raise PolicyError('Discovery exhausted six rounds without selecting a task scope')
 
 
+@tracing.traced('prepare-workspace')
 def create_workspace(plan, output):
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -133,7 +137,7 @@ def create_workspace(plan, output):
     return root
 
 
-def start(plan, output):
+def start(plan, output, *, trace_session_id=None):
     """Create a session only after the interactive human approves its exact plan."""
     output = Path(output).resolve()
     if output.exists():
@@ -145,7 +149,7 @@ def start(plan, output):
     record = {'plan': plan, 'workspace': str(root), 'base_revision': git(root, 'rev-parse', 'HEAD').strip(),
               'branch': git(root, 'branch', '--show-current').strip(),
               'index': 0, 'files': plan['files'], 'states': [], 'current': None,
-              'remaining_seconds': plan['budget_seconds'], 'status': 'ready'}
+              'remaining_seconds': plan['budget_seconds'], 'status': 'ready', 'trace_session_id':trace_session_id or uuid.uuid4().hex}
     save_session(output, record)
     return output
 
@@ -190,6 +194,7 @@ def load_session(output):
     return record
 
 
+@tracing.traced('execute-session')
 def run_session(output, backend, runner, *, progress=print):
     from .workflow import execute
     from .reporting import render_report, source_divergence
@@ -203,6 +208,7 @@ def run_session(output, backend, runner, *, progress=print):
         return record
     while record['index'] < len(plan['increments']):
         index = record['index']
+        tracing.annotate(increment=index+1)
         increment = plan['increments'][index]
         progress(f'Increment {index + 1}/{len(plan["increments"])}: {increment["task"]}')
         current = record['current']
@@ -231,6 +237,9 @@ def run_session(output, backend, runner, *, progress=print):
         save_session(output, record)
     if record['index'] == len(plan['increments']):
         record['status'] = 'verified'
+    from .tracing.evaluation import evaluate_state, combine_scores
+    states_for_scores=record['states']+([record['current']] if record['current'] else [])
+    tracing.set_scores(combine_scores([evaluate_state(s) for s in states_for_scores],record['status']))
     evidence, changes, rejections = [], [], []
     states = record['states'] + ([record['current']] if record['current'] else [])
     for i, state in enumerate(states, 1):

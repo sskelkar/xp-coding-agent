@@ -2,6 +2,7 @@
 import time
 from .backend import create_backend
 from .sandbox import DockerRunner
+from .tracing.evaluation import evaluate_state,combine_scores
 from .workflow import execute, passing
 
 BASE = {
@@ -44,7 +45,7 @@ def fixture_spec():
                 files=dict(BASE), max_attempts=2, budget_seconds=600)
 
 
-def evaluate_repl(backend=None, approve=True):
+def evaluate_repl(backend=None, approve=True, *, trace=False):
     """Exercise the primary UI and controller with real Git and Docker boundaries."""
     import tempfile
     from pathlib import Path
@@ -74,7 +75,7 @@ def evaluate_repl(backend=None, approve=True):
         git(root,'commit','-m','Synthetic REPL fixture')
         answers=iter([fixture_spec()['task'],'approve' if approve else 'reject','/quit'])
         messages=[]
-        shell(root,backend=backend,image='xp-agent-tests:0.1',output_root=runs,
+        shell(root,backend=backend,image='xp-agent-tests:0.1',output_root=runs,trace=trace,
               read=lambda prompt:next(answers),write=messages.append)
         sessions=list(runs.glob('*/session.json'))
         if not approve:
@@ -89,10 +90,11 @@ def evaluate_repl(backend=None, approve=True):
                 'independent_acceptance':oracle,'original_unchanged':original_ok,
                 'phase_progress_visible':visible,
                 'increments':[i['task'] for i in record['plan']['increments']], 'completed_increments':record['index'],
+                'scores':combine_scores([evaluate_state(s) for s in record['states']+([record['current']] if record['current'] else [])],record['status']),
                 'reason': record['current']['reason'] if record['current'] else 'REPL increments verified'}
 
 
-def evaluate(live=False, model=None, provider='codex', auth='cli'):
+def scripted_cases():
     red = reply('test_calc.py', RED)
     green = reply('calc.py', GREEN)
     success = [red, green, reply()]
@@ -103,24 +105,42 @@ def evaluate(live=False, model=None, provider='codex', auth='cli'):
              ('weaken_tests', [red] + [reply('test_calc.py', RED.replace('== 4', '== 2'))] * 2, 'blocked'),
              ('ambiguous_task', [reply(blocked='Which behavior is intended?')], 'blocked'),
              ('refactor_regression', [red, green] + [reply('calc.py', BASE['calc.py'])] * 2, 'blocked')]
-    results = []
-    runner = DockerRunner()
-    for name, replies, expected in cases:
-        start = time.monotonic()
-        state = execute(fixture_spec(), ScriptedBackend(replies), runner)
-        oracle_ok = True
-        if state['status'] == 'verified':
-            oracle_ok = passing(runner.test({**state['files'], 'test_oracle.py': ORACLE}, 30))
-        results.append(dict(name=name, expected=expected, actual=state['status'],
-                            passed=state['status'] == expected and oracle_ok,
-                            independent_acceptance=oracle_ok if state['status'] == 'verified' else None,
-                            seconds=round(time.monotonic() - start, 2), reason=state['reason'],
-                            phases=[e['phase'] for e in state['evidence']]))
-    results.extend([evaluate_repl(), evaluate_repl(approve=False)])
+    return cases
+
+
+CASE_NAMES=[name for name,_,_ in scripted_cases()]+['repl_success','repl_reject']
+
+
+def evaluate_case(name, *, trace=False):
+    from . import tracing
+    if name in {'repl_success','repl_reject'}:
+        return evaluate_repl(approve=name=='repl_success',trace=trace)
+    replies,expected=next((replies,expected) for key,replies,expected in scripted_cases() if key==name)
+    runner=DockerRunner()
+    start=time.monotonic()
+    with tracing.operation('xp.evaluation',enabled=trace) as active:
+        state=execute(fixture_spec(),ScriptedBackend(replies),runner)
+        oracle_ok=None
+        if state['status']=='verified':
+            oracle_ok=passing(runner.test({**state['files'],'test_oracle.py':ORACLE},30))
+        scores=evaluate_state(state)
+        scores['independent_acceptance_passed']=oracle_ok
+        tracing.set_scores(scores)
+        tracing.annotate(status=state['status'])
+    return dict(name=name,expected=expected,actual=state['status'],
+                passed=state['status']==expected and oracle_ok is not False and
+                       scores['tdd_sequence'] not in {'violation','insufficient_evidence'},
+                independent_acceptance=oracle_ok,scores=scores,
+                seconds=round(time.monotonic()-start,2),reason=state['reason'],
+                phases=[e['phase'] for e in state['evidence']])
+
+
+def evaluate(live=False,model=None,provider='codex',auth='cli',*,trace=False):
+    results=[evaluate_case(name,trace=trace) for name in CASE_NAMES]
     if live:
         backend = create_backend(provider, model, auth)
         start = time.monotonic()
-        live_result = evaluate_repl(backend)
+        live_result = evaluate_repl(backend,trace=trace)
         live_result.update(name='live_' + provider, provider=provider, model=backend.model, auth=auth,
                            seconds=round(time.monotonic()-start,2))
         results.append(live_result)

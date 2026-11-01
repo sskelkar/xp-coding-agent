@@ -496,3 +496,49 @@ A live Codex REPL smoke passed. Claude has controlled adapter/Docker coverage bu
 Use a meaningful failing test, the smallest passing implementation, then refactor. Add a REPL regression when the user-facing path changes. Full deterministic tests need no provider credentials; CI builds Docker and runs them. Live evals require an authorized account and are not part of CI.
 
 `uv build` checks packaging and creates a source archive and wheel (Python's installable distribution format) in ignored `dist/`; it does not check runtime correctness. Follow [AGENTS.md](../AGENTS.md) for contribution rules and the [roadmap](roadmap.md) for the next authorized milestone. Do not commit raw source-bearing run records as evidence; summarize validation in the docs.
+
+## Local tracing and evidence evaluation
+
+**Observability** means seeing what the program actually did: which operation ran, how long it took, which tests passed/failed, and which controller decision followed. It helps diagnose behavior; it does not grant the model permission to change code.
+
+**Langfuse** is a separate local web application that stores and displays this information. Its Python **SDK** (software development kit: a library used by our code to talk to that application) is optional. Install it with `uv sync --frozen --extra tracing`. An **extra** is a named optional dependency group; normal installation stays usable without it. The agent's `.venv` remains its private Python dependency environment. Installation and local key setup are in [Local tracing](tracing.md).
+
+### Follow the recording path
+
+1. `cli.main()` accepts `--trace` / `--no-trace`. The REPL also understands `/trace on` and `/trace off`, storing a boolean preference alongside provider/model/auth defaults. It never stores API keys.
+2. `repl.shell()` starts an `operation('xp.plan', ...)` around planning/review, then another `operation('xp.execute', ...)` around approved workspace creation and execution. Each gets a new trace identity; the opaque session identity stays the same. Resume uses the recorded identity and prior-trace reference, preserving the existing continuation checks.
+3. `session.prepare()` records discovery/model calls. `session.run_session()` calls `workflow.execute()` for each increment. That function records phase spans, model calls, actual test-runner calls and evidence gates. Planning can finish with `rejected`; rejected plans still execute no project code.
+4. `tracing.Recorder` holds safe dictionaries in memory. It drops unknown fields instead of serializing function arguments/results. Code, goals, test names, output and exception text do not enter the recorder.
+5. At an operation's end, `operation()` writes bounded metadata JSON, then calls `tracing.exporter.export()`. A separate process imports the SDK and sends only to `127.0.0.1:4000`. Missing configuration/export failures produce a warning; they cannot turn verified code into a failed coding outcome or hide a coding failure.
+
+A Python **context manager** is an object used with `with` to guarantee enter/exit work, similar to Java's try-with-resources plus a `finally` block. Here `with tracing.observation(...)` starts a timed record, lets the code run, then ends it even when an exception is raised. `@tracing.traced(...)` is a **decorator**: Python syntax for wrapping a function with another function. It provides that same timing wrapper without recording its arguments or return value. A decorator is not a LangGraph node.
+
+`ContextVar` is Python's context-local storage, comparable in purpose to Java context propagation/`ThreadLocal` for the current execution. The recorder and parent observation ID live there so nested calls attach to the right parent without adding trace arguments to every function. It is not durable storage, a model conversation or a replacement for `State`/`session.json`.
+
+**OpenTelemetry** is a standard format/API for timed operations. The exporter reconstructs those operations using the original timestamps and parent IDs, then wraps them with Langfuse's observation types. It uses a private OpenTelemetry provider (the object responsible for recording/exporting spans), leaving the controller's global tracing setup alone. We deliberately do not attach Langfuse's general LangChain callback: that could capture source-bearing prompts and state. LangSmith tracing remains explicitly disabled.
+
+In ordinary coding sessions, the recorder is the only new in-memory state. Existing session state also gains an opaque `trace_session_id` and, after traced execution, `previous_trace_id`. Evidence rows gain schema/sequence fields and before/after source/test/full-snapshot hashes. These hashes identify matching snapshots without exporting their contents. They do not encrypt low-entropy data or authenticate a tamper-proof audit log.
+
+### Why scores use execution evidence
+
+`tracing.evaluation.evaluate_state(state)` is an ordinary Python function with no SDK/network calls. It rechecks accepted phases and evidence: a passing baseline, a new failing assertion while source stayed fixed, a green implementation with frozen tests, refactoring and final verification. It checks required test identities and artifact continuity. Rejected candidates do not advance the accepted sequence. The result is `complete`, `valid_partial`, `violation` or `insufficient_evidence`, plus individual scores. Old records lacking the new evidence fields remain usable for continuation, but cannot claim full new evidence coverage.
+
+`verified` and a complete TDD sequence still do not prove business correctness. The withheld numeric oracle belongs only to our eval fixtures. Normal projects do not get an invented acceptance oracle. Pair-only scores are explicitly not applicable while there is only one coding partner.
+
+### Walk through the tracing tests and experiment
+
+Run `uv run --extra tracing pytest tests/test_tracing.py`. Pytest supplies a temporary directory and the `monkeypatch` fixture. **Monkeypatching** means temporarily replacing a function/environment value for one test, then restoring it automatically; it resembles injecting a Java test double. Export tests substitute an in-memory OpenTelemetry exporter and an HTTP mock, so no keys, server or model quota are needed.
+
+The tests first record nested operations and assert that private input fields vanished while parent IDs, timestamps and safe phase metadata remain. Controller tests run controlled proposals through the real graph, then deliberately alter accepted evidence (remove failures, change hashes, remove passing tests, reorder rows) and require the evaluator to reject it. REPL tests enable tracing, reject a plan and assert that no workspace/tests ran. Other tests check record limits, missing credentials/export errors, destination restrictions and SDK score upload failures.
+
+For a local Langfuse experiment, configure the separate local project, then run:
+
+```sh
+uv run --extra tracing xp-agent eval --experiment --output eval-results/experiment.json
+```
+
+An **experiment** repeats a versioned set of example tasks and records comparable outcomes. This command uses Langfuse's `run_experiment` API. Its `data` is a list of safe fixture IDs; its `task` function calls our existing controller or REPL eval; its `evaluators` are functions returning SDK `Evaluation` objects (a score name, value and type). A `run_evaluator` checks the whole suite, refusing missing, duplicate or failed cases. Python passes these functions as values, much like Java lambdas implementing functional interfaces.
+
+The nine existing cases still execute the actual REPL/Git/Docker paths described above. Four additional synthetic cases check the planned red/green partner ownership and artifact handoff protocol. They do not launch a second agent. Experiment task traces contain safe fixture IDs/summaries and controller child observations, never source-bearing session dictionaries. The ordinary `eval` command remains usable without Langfuse. No live model request is made by `--experiment`; `--live` remains a separate operation.
+
+[Local tracing](tracing.md) lists the exact scores, setup, observation tree and current verification gap: real server ingestion/retrieval awaits locally configured keys.

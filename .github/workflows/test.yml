@@ -10,8 +10,8 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.13'
-      - run: uv sync --frozen
+      - run: uv sync --frozen --extra tracing
       - run: docker build -f Dockerfile.tests -t xp-agent-tests:0.1 .
-      - run: uv run pytest
+      - run: uv run --extra tracing pytest
         env:
           XP_DOCKER_TESTS: '1'

@@ -328,3 +328,9 @@ Successful commands return exit code 0. Blocked runs and failed evals return 2. 
 - No automatic integration into the original project, remote publication, merge or deployment.
 - Codex and Claude Code adapters only. No direct SDK adapters, arbitrary endpoints, Bedrock/Vertex/gateway configuration or automatic provider fallback. Switching requires a new approved plan; it cannot resume a blocked phase.
 - Use trusted, non-sensitive projects. Structural checks cannot prove semantic correctness. Project code and pytest share a container process, so malicious code can manipulate test reporting; container restrictions are not a guarantee against arbitrary hostile repositories.
+
+## Optional local tracing
+
+`plan`, `run` and `eval` accept `--trace` / `--no-trace`, off by default in batch mode. Install the optional tracing dependency and configure the separate local Langfuse project first; see [local tracing](tracing.md). These flags never change the approved model or XP gates. Batch planning and execution traces are independent; REPL sessions provide shared trace-session identities.
+
+`uv run --extra tracing xp-agent eval --experiment` runs the scripted fixtures through Langfuse's SDK experiment API. It requires a working local service and keys, refuses `--live` and `--no-trace`, and returns 2 for a failed/incomplete suite or export requirement. Ordinary evals remain usable without Langfuse. Future pairing is represented only by synthetic protocol fixtures.

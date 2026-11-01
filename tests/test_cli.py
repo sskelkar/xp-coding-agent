@@ -109,3 +109,9 @@ def test_run_uses_approved_provider_without_falling_back(tmp_path, monkeypatch):
     assert calls == [('claude', 'sonnet', 'api-key')]
     assert 'Provider quota unavailable' in (output / 'result.md').read_text()
     assert json.loads((output / 'state.json').read_text())['files'] == plan['files']
+
+
+def test_experiment_refuses_live_or_explicit_no_trace_before_any_request(capsys):
+    assert main(['eval','--experiment','--live'])==2
+    assert main(['eval','--experiment','--no-trace'])==2
+    assert 'requires tracing' in capsys.readouterr().err

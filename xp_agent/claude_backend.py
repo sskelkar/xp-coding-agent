@@ -62,6 +62,8 @@ class ClaudeBackend:
                     final = event
             if not final or final.get('is_error') is not False or final.get('subtype') != 'success':
                 raise ValueError('No successful result')
+            from .tracing import report_usage
+            report_usage(final.get('usage'))
             return json.dumps(final['structured_output'])
         except (ValueError, TypeError, KeyError, AttributeError) as exc:
             # Do not echo error strings from provider output into durable state.

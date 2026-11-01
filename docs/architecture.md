@@ -13,6 +13,7 @@ For a guided introduction to Python, graph nodes and state, see [How it works](h
 | Model | `backend`, `claude_backend` | Shared proposal contract and factory; Codex and Claude Code adapters |
 | Execution | `sandbox`, `process` | Independent tests; deadlines, process-group cancellation, container cleanup |
 | Records | `project`, `reporting` | Version-bound approval, atomic state, snapshot branch/diff, preserved plan and final report |
+| Observability | `tracing` | Optional bounded metadata recorder, local-only SDK export, deterministic TDD scores and scripted experiments |
 | Evaluation | `evals`, `tests` | Scripted adversaries, real containers, optional live model |
 
 ```mermaid
@@ -62,3 +63,5 @@ All test nodes cross into an unprivileged network-disabled container. The model 
 Dependency preparation occurs before a run; the approved image ID is pinned in the grant. Environment setup never installs packages in response to model output.
 
 The initial bounded approval trades continuous human planning participation for autonomous execution within a fixed grant. Human feedback and acceptance remain valuable, but in-run material plan amendments are not implemented; continuation preserves the original agreement. This is an XP-inspired controller, not an implementation of every team-level XP practice.
+
+Optional observability wraps the existing execution; it adds no LangGraph nodes or approval bypass. A standard-library recorder retains allowlisted metadata, and a separate process exports it to local Langfuse. SDK experiments use safe fixture IDs/results and the same REPL/controller/Docker eval paths. See [tracing](tracing.md).

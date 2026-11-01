@@ -35,7 +35,9 @@ def create_plan(project, task, source_paths, test_paths, backend: ProposalBacken
         remaining = deadline-time.monotonic()
         if remaining <= 0:
             raise PolicyError('Planning deadline exceeded')
-        proposal = backend.propose('plan',context,remaining)
+        from . import tracing
+        with tracing.observation('model.propose','generation',phase='plan',provider=getattr(backend,'provider',None),model=backend.model,auth=getattr(backend,'auth',None),usage_known=False,visibility='cli-aggregate'):
+            proposal = backend.propose('plan',context,remaining)
         if proposal.get('blocked'):
             raise PolicyError(proposal['blocked'])
         if not proposal.get('edits') and proposal.get('acceptance') and proposal.get('tradeoffs'):

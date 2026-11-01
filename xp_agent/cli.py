@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import sys
 from .backend import create_backend
+from . import tracing
 from .policy import PolicyError
 from .process import run
 from .project import create_plan, verify_approval, write_json, render_plan, make_workspace, write_files, git
@@ -90,6 +91,10 @@ def main(argv=None):
     backend_arguments(repl_cmd)
     repl_cmd.add_argument('--budget', type=int, default=600)
     repl_cmd.add_argument('--attempts', type=int, default=2)
+    for command in (plan_cmd,run_cmd,eval_cmd,repl_cmd):
+        command.add_argument('--trace',action=argparse.BooleanOptionalAction,default=None,
+                             help='Opt in to local metadata tracing at 127.0.0.1:4000; default off or saved REPL preference')
+    eval_cmd.add_argument('--experiment',action='store_true',help='Run the scripted suite as a local Langfuse SDK experiment; no live calls')
     actual = list(sys.argv[1:] if argv is None else argv)
     if not actual or actual[0] not in {'plan','run','eval','repl','-h','--help'}:
         actual.insert(0, 'repl')
@@ -97,14 +102,15 @@ def main(argv=None):
     try:
         if args.command == 'repl':
             from .repl import shell
-            return shell(args.project,provider=args.provider,model=args.model,auth=args.auth,budget=args.budget,attempts=args.attempts)
+            return shell(args.project,provider=args.provider,model=args.model,auth=args.auth,budget=args.budget,attempts=args.attempts,trace=args.trace)
         if args.command == 'plan':
             if args.output.exists():
                 raise PolicyError('Plan output exists; choose a new output path')
             image = run(['docker', 'image', 'inspect', args.image, '--format', '{{.Id}}'], timeout=10)
             if image.returncode:
                 raise PolicyError('Build Dockerfile.tests first; image is unavailable')
-            plan = create_plan(args.project, args.task, args.source, args.tests, create_backend(args.provider or 'codex', args.model, args.auth or 'cli', status=heartbeat),
+            with tracing.operation('xp.plan',enabled=args.trace,directory=args.output.parent/'traces'):
+                plan = create_plan(args.project, args.task, args.source, args.tests, create_backend(args.provider or 'codex', args.model, args.auth or 'cli', status=heartbeat),
                                read_paths=args.read, budget=args.budget, attempts=args.attempts, image=image.stdout.strip())
             write_json(args.output, plan)
             markdown = args.output.with_suffix('.md')
@@ -114,9 +120,16 @@ def main(argv=None):
         if args.command == 'run':
             plan = json.loads(args.plan.read_text())
             verify_approval(plan, args.approve)
-            return perform_run(plan, args.output)
-        from .evals import evaluate
-        report = evaluate(live=args.live, model=args.model, provider=args.provider or 'codex', auth=args.auth or 'cli')
+            with tracing.operation('xp.batch',enabled=args.trace,directory=args.output):
+                return perform_run(plan, args.output)
+        if args.experiment:
+            if args.trace is False: raise PolicyError('--experiment requires tracing; omit --no-trace')
+            if args.live: raise PolicyError('--experiment uses scripted fixtures only; omit --live')
+            from .tracing.experiments import run_experiment
+            report=run_experiment()
+        else:
+            from .evals import evaluate
+            report = evaluate(live=args.live, model=args.model, provider=args.provider or 'codex', auth=args.auth or 'cli',trace=bool(args.trace))
         write_json(args.output, report)
         print(json.dumps(report, indent=2))
         return 0 if report['passed'] else 2

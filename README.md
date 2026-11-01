@@ -70,13 +70,14 @@ A rejected plan executes nothing. Enter a clarification or corrected goal to rep
 | `/provider claude haiku cli` | Select and save defaults for new plans |
 | `/provider claude sonnet oauth-token` | Select Claude Sonnet with an explicitly exported OAuth token |
 | `/provider codex gpt-6-luna cli` | Select Codex with saved CLI authentication |
+| `/trace on`, `/trace off` | Enable/disable optional local metadata tracing |
 | `/status` | Display the latest session location and selected provider |
 | `/resume` | Continue the latest session in this shell |
 | `/resume /absolute/path/to/session` | Select a saved session after restarting the shell |
 | `/new` | Clear the pending goal and discovery hints |
 | `/help`, `/quit` | Help or exit |
 
-You can also set startup defaults with `xp-coding-agent --provider claude --model haiku --auth cli`. Saved preferences contain provider/model/auth mode only. They are stored alongside the session directory and do not contain credentials. Default provider is Codex (`gpt-6-luna`); Claude defaults to `haiku`. There is no silent provider fallback.
+You can also set startup defaults with `xp-coding-agent --provider claude --model haiku --auth cli`. Saved preferences contain provider/model/auth mode and the tracing preference only. They are stored alongside the session directory and do not contain credentials. Default provider is Codex (`gpt-6-luna`); Claude defaults to `haiku`. There is no silent provider fallback.
 
 ### Workspace and review
 
@@ -105,6 +106,12 @@ Records default to `$XDG_STATE_HOME/xp-coding-agent/sessions/`, or `~/.local/sta
 This uses explicit application state and graph entry routing, not a LangGraph durable checkpointer or exact model conversation replay. Material scope/provider changes require a new plan; there is no automatic amendment or semantic feedback revision of an existing grant. Human acceptance remains pending even when automated gates say `verified`.
 
 Abrupt process termination or filesystem failures can leave incomplete artifacts; saved state must reconcile before continuation. Model requests are fresh per phase, and inference is hosted. Check account/provider authorization before disclosing code. Claude has adapter contract coverage but still needs a successful authenticated live cycle in your configuration.
+
+## Optional local Langfuse tracing
+
+Tracing is off by default. It records model-call timings, controller decisions, test counts, artifact hashes and deterministic TDD scores; source, prompts, task text and test output are excluded. Install the optional SDK with `uv sync --frozen --extra tracing` (or `uv tool install --editable '.[tracing]' --force` for the global executable), configure a local Langfuse project at `http://127.0.0.1:4000`, then start `xp-coding-agent --trace` or enter `/trace on`.
+
+[Local tracing and experiments](docs/tracing.md) explains keys, safe metadata, failure behavior and the SDK experiment command. Ordinary coding/evals work without Langfuse. Export errors warn without changing the coding result. Live server ingestion still needs verification after local keys are configured.
 
 ## Understand and enhance the project
 

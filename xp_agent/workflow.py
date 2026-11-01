@@ -5,6 +5,8 @@ from typing import TypedDict
 from .policy import PolicyError, digest, validate_edits
 from .process import ProcessError
 from .backend import ProposalBackend
+from . import tracing
+from .tracing.evaluation import evaluate_state
 
 # Neither graph state nor code may be sent to tracing services implicitly.
 os.environ['LANGCHAIN_TRACING_V2'] = 'false'
@@ -33,9 +35,11 @@ def passing(report, required=()):
             set(required).issubset(report['passed']))
 
 
+@tracing.traced('execute-increment')
 def execute(spec, backend: ProposalBackend, runner, checkpoint=None, *, initial_state=None):
     deadline = time.monotonic() + (initial_state.get('remaining_seconds', 0) if initial_state else spec['budget_seconds'])
     snapshot = {}
+    observed_evidence=len(initial_state.get('evidence',[])) if initial_state else 0
 
     def remaining():
         seconds = deadline - time.monotonic()
@@ -44,17 +48,41 @@ def execute(spec, backend: ProposalBackend, runner, checkpoint=None, *, initial_
         return seconds
 
     def save(state):
+        nonlocal observed_evidence
         state['remaining_seconds'] = max(0, deadline - time.monotonic())
         snapshot.update(state)
+        tracing.annotate(status=state['status'],remaining_seconds=state['remaining_seconds'])
+        if state['status'] in {'verified','blocked','cancelled'}:
+            tracing.set_scores(evaluate_state(state))
+        for row in state.get('evidence',[])[observed_evidence:]:
+            with tracing.observation('controller-gate',sequence=row.get('sequence'),phase=row['phase'],accepted=row['accepted'],scope_valid=row.get('scope_valid'),
+                                     code_hash=row['code_hash'],source_hash=row.get('source_hash'),test_hash=row.get('test_hash')): pass
+        observed_evidence=len(state.get('evidence',[]))
         if checkpoint:
             checkpoint(dict(state))
         return state
 
-    def evidence(state, phase, files, report):
-        state['evidence'] = state['evidence'] + [{'phase': phase, 'code_hash': digest(files), 'accepted': False, **report}]
+    def test(files,timeout):
+        with tracing.observation('run-tests','tool') as span:
+            report=runner.test(files,timeout)
+            span.update(**{k:len(report[k]) for k in ('passed','failed','errors','skipped')},returncode=report['returncode'])
+            return report
 
+    def evidence(state, phase, files, report):
+        before=state['files']
+        subset=lambda value,paths:digest({p:value[p] for p in paths if p in value})
+        changed={p for p in set(before)|set(files) if before.get(p)!=files.get(p)}
+        allowed=spec['test_paths'] if phase=='red' else spec['source_paths'] if phase in {'green','refactor'} else []
+        state['evidence'] = state['evidence'] + [{
+            'version':1,'sequence':len(state['evidence'])+1,'actor':'solo','phase':phase,
+            'before_hash':digest(before),'code_hash':digest(files),'accepted':False,
+            'before_source_hash':subset(before,spec['source_paths']),'source_hash':subset(files,spec['source_paths']),
+            'before_test_hash':subset(before,spec['test_paths']),'test_hash':subset(files,spec['test_paths']),
+            'scope_valid':changed<=set(allowed), **report}]
+
+    @tracing.traced('baseline')
     def baseline(state):
-        report = runner.test(state['files'], remaining())
+        report = test(state['files'], remaining())
         evidence(state, 'baseline', state['files'], report)
         state['evidence'][-1]['accepted'] = passing(report)
         if not passing(report):
@@ -65,13 +93,17 @@ def execute(spec, backend: ProposalBackend, runner, checkpoint=None, *, initial_
         return save(state)
 
     def phase_node(phase):
+        @tracing.traced('coding-phase')
         def node(state):
+            tracing.annotate(phase=phase,attempt=state['attempts'].get(phase,0)+1)
             state['phase'] = phase
             if state['attempts'].get(phase, 0) >= spec['max_attempts']:
                 return save({**state, 'status': 'blocked', 'reason': f'{phase}: attempt budget exhausted'})
             state['attempts'] = {**state['attempts'], phase: state['attempts'].get(phase, 0) + 1}
             save(state)
-            reply = backend.propose(phase, {**spec, 'files': state['files'], 'feedback': state.get('last_feedback', '')}, remaining())
+            with tracing.observation('model.propose','generation',phase=phase,provider=getattr(backend,'provider',None),
+                                     model=getattr(backend,'model',None),auth=getattr(backend,'auth',None),usage_known=False,visibility='cli-aggregate'):
+                reply = backend.propose(phase, {**spec, 'files': state['files'], 'feedback': state.get('last_feedback', '')}, remaining())
             if reply.get('blocked'):
                 state.update(status='blocked', reason=reply['blocked'])
                 return save(state)
@@ -83,7 +115,7 @@ def execute(spec, backend: ProposalBackend, runner, checkpoint=None, *, initial_
                 if len(edits) != len(changes):
                     raise PolicyError('Duplicate candidate paths')
                 candidate = validate_edits(phase, state['files'], edits, spec['source_paths'], spec['test_paths'])
-                report = runner.test(candidate, remaining())
+                report = test(candidate, remaining())
                 evidence(state, phase, candidate, {**report, 'rationale': reply['rationale']})
                 if phase == 'red':
                     good = (report['returncode'] == 1 and bool(report['failed']) and not report['errors'] and
@@ -107,14 +139,16 @@ def execute(spec, backend: ProposalBackend, runner, checkpoint=None, *, initial_
                 state['rejections'] = state['rejections'] + [{
                     'phase': phase, 'attempt': state['attempts'][phase], 'reason': str(exc),
                 }]
+                tracing.annotate(rejected_proposals=len(state['rejections']))
                 state['last_feedback'] = str(exc)
                 if state['attempts'][phase] >= spec['max_attempts']:
                     state.update(status='blocked', reason=f'{phase}: {exc}; attempt budget exhausted')
             return save(state)
         return node
 
+    @tracing.traced('final')
     def final(state):
-        report = runner.test(state['files'], remaining())
+        report = test(state['files'], remaining())
         evidence(state, 'final', state['files'], report)
         state['evidence'][-1]['accepted'] = passing(report, state['red_tests'])
         state.update(status='verified' if passing(report, state['red_tests']) else 'blocked',

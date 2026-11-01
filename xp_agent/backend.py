@@ -153,6 +153,9 @@ class CodexBackend:
                     continue
                 if not isinstance(event, dict) or not isinstance(event.get('item', {}), dict):
                     raise BackendError('Codex returned a malformed event')
+                if event.get('type')=='turn.completed':
+                    from .tracing import report_usage
+                    report_usage(event.get('usage'))
                 item_type = event.get('item', {}).get('type', '')
                 if item_type in {'command_execution', 'file_change', 'mcp_tool_call', 'web_search'}:
                     raise BackendError('Backend attempted tool use; proposal rejected')

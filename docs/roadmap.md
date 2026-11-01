@@ -25,6 +25,10 @@ Plans and final reports remain separate. Preserve the original agreement; record
 
 Milestones 5 and 6 are optional experiments. They may be reordered, dropped or kept disabled if they do not help. Milestone 7 can move earlier when execution needs demand it. The second provider was brought forward to reduce dependence on one provider's quota; this does not make all of milestone 4 complete.
 
+## Observability foundation
+
+Optional local Langfuse metadata tracing and deterministic evidence scores are implemented; the [setup](tracing.md) documents current bounds. SDK experiments reuse the nine scripted controller/REPL cases and add four synthetic red/green pair-contract cases. This does not implement milestone 6. Real ingestion/score retrieval and experiment UI validation remain pending local project key setup. Finish that synthetic local audit before relying on the dashboard, then use repeated/held-out scenarios to guide pairing/context experiments. Native UI evaluator infrastructure and LLM judges are not prerequisites.
+
 ## Interactive stories and remaining work
 
 The desired user experience is to enter the target project directory, launch `xp-coding-agent`, describe the task conversationally, review/approve a plan in the terminal, and receive progress through XP increments. The REPL now performs bounded file selection and records in-shell approval; explicit lists/IDs remain only in the batch API. That is a prototype restriction, not a requirement we expect normal users to satisfy in a complex project.

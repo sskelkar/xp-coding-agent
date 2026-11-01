@@ -132,3 +132,7 @@ uv run xp-agent eval --live --provider claude --model haiku --auth oauth-token \
 ```
 
 Replace `--auth oauth-token` with your configured mode. Choose `--provider codex --model gpt-6-luna --auth cli` for Codex. Live evals report the selected provider, model and auth mode, without credential values. A successful smoke eval establishes that one synthetic XP cycle worked; it does not qualify a corporate account, guarantee coding quality or test every authentication mode.
+
+## Optional tracing credentials are separate
+
+Langfuse project keys configure only optional local observability; they do not select or authenticate a model. Use [the local tracing setup](tracing.md), with tracing off by default. Generation observations describe bounded CLI requests; validated provider-reported token counts are retained when available, otherwise usage is unknown. Billing remains unknown, including for subscription requests. Prompts, replies and provider credentials are excluded.
