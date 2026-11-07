@@ -1,4 +1,4 @@
-> Implementation status: optional local tracing, deterministic execution scores and SDK scripted experiments are implemented. See [current behavior](tracing.md). This document preserves the reviewed design; proposed richer handoff/ownership/budget evidence and actual pairing remain future work. Real server ingestion/retrieval is pending local project keys.
+> Implementation status: optional local tracing, deterministic execution scores and SDK scripted experiments are implemented. See [current behavior](tracing.md). This document preserves the reviewed design; proposed richer handoff/ownership/budget evidence and actual pairing remain future work. Real local ingestion/retrieval and the experiment UI have been verified with synthetic fixtures; see [evaluation evidence](evaluation.md).
 
 # Local Langfuse observability and TDD evaluation plan
 

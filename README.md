@@ -111,7 +111,7 @@ Abrupt process termination or filesystem failures can leave incomplete artifacts
 
 Tracing is off by default. It records model-call timings, controller decisions, test counts, artifact hashes and deterministic TDD scores; source, prompts, task text and test output are excluded. Install the optional SDK with `uv sync --frozen --extra tracing` (or `uv tool install --editable '.[tracing]' --force` for the global executable), configure a local Langfuse project at `http://127.0.0.1:4000`, then start `xp-coding-agent --trace` or enter `/trace on`.
 
-[Local tracing and experiments](docs/tracing.md) explains keys, safe metadata, failure behavior and the SDK experiment command. Ordinary coding/evals work without Langfuse. Export errors warn without changing the coding result. Live server ingestion still needs verification after local keys are configured.
+[Local tracing and experiments](docs/tracing.md) explains keys, safe metadata, failure behavior and the SDK experiment command. Ordinary coding/evals work without Langfuse. Export errors warn without changing the coding result. Local ingestion, score retrieval and the experiment UI have been verified with synthetic fixtures; see [evaluation evidence](docs/evaluation.md).
 
 ## Understand and enhance the project
 

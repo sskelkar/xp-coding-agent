@@ -27,7 +27,7 @@ Milestones 5 and 6 are optional experiments. They may be reordered, dropped or k
 
 ## Observability foundation
 
-Optional local Langfuse metadata tracing and deterministic evidence scores are implemented; the [setup](tracing.md) documents current bounds. SDK experiments reuse the nine scripted controller/REPL cases and add four synthetic red/green pair-contract cases. This does not implement milestone 6. Real ingestion/score retrieval and experiment UI validation remain pending local project key setup. Finish that synthetic local audit before relying on the dashboard, then use repeated/held-out scenarios to guide pairing/context experiments. Native UI evaluator infrastructure and LLM judges are not prerequisites.
+Optional local Langfuse metadata tracing and deterministic evidence scores are implemented; the [setup](tracing.md) documents current bounds. SDK experiments reuse the nine scripted controller/REPL cases and add four synthetic red/green pair-contract cases. This does not implement milestone 6. Real local ingestion/score retrieval, session links and the 13-case experiment UI have been verified with synthetic fixtures. The audit found and fixed SDK public-key scope metadata export. Next use a supported toy-project change and repeated/held-out scenarios to guide pairing/context experiments. Native UI evaluator infrastructure and LLM judges are not prerequisites.
 
 ## Interactive stories and remaining work
 

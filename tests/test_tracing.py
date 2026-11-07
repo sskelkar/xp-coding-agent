@@ -353,3 +353,25 @@ def test_experiment_cancellation_gives_worker_a_cleanup_window(monkeypatch):
     monkeypatch.setattr(subprocess,'Popen',lambda *a,**k:Child())
     with pytest.raises(KeyboardInterrupt): run_experiment()
     assert signals==[signal.SIGINT]
+
+
+def test_exporter_strips_sdk_scope_credentials_before_transport():
+    pytest.importorskip('langfuse')
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor,SpanExporter,SpanExportResult
+    from xp_agent.tracing.exporter import strip_scope_attributes
+    class Memory(SpanExporter):
+        def __init__(self): self.spans=[]
+        def export(self,spans): self.spans.extend(spans);return SpanExportResult.SUCCESS
+        def shutdown(self): pass
+    memory=Memory();provider=TracerProvider(shutdown_on_exit=False)
+    provider.add_span_processor(SimpleSpanProcessor(strip_scope_attributes(memory)))
+    try:
+        tracer=provider.get_tracer('langfuse-sdk','fixture',attributes={'public_key':'pk-lf-PRIVATE','other':'PRIVATE'})
+        with tracer.start_as_current_span('experiment-item-task') as span: span.set_attribute('safe','fixture')
+        provider.force_flush()
+        actual=memory.spans[0]
+        assert not actual.instrumentation_scope.attributes
+        assert actual.instrumentation_scope.name=='langfuse-sdk'
+        assert actual.attributes['safe']=='fixture'
+    finally:provider.shutdown()

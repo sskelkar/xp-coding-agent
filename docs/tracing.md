@@ -25,7 +25,15 @@ read -s LANGFUSE_SECRET_KEY
 export LANGFUSE_SECRET_KEY
 ```
 
-These commands are for a zsh/bash terminal. Enter the requested value at each hidden prompt. This project does not load `.env` files. Credentials are read only when an export or experiment is requested; they do not enter plans, reports, prompts or test containers.
+These commands are for a zsh/bash terminal. Enter the requested value at each hidden prompt. This project does not automatically load `.env` files. If you keep these two keys in a private, ignored `.env.langfuse` file, load it explicitly from the agent checkout before starting the agent:
+
+```sh
+set -a
+source .env.langfuse
+set +a
+```
+
+The exported values remain available when you change to your target project directory in that terminal. Keep the file owner-readable only (`chmod 600 .env.langfuse`). Credentials are read only when an export or experiment is requested; they do not enter plans, reports, prompts or test containers.
 
 The destination is deliberately fixed. `LANGFUSE_HOST`, `LANGFUSE_BASE_URL`, ambient OpenTelemetry exporter settings and proxy variables cannot redirect this integration. Remote/cloud/custom-endpoint tracing is unsupported. The exporter disables HTTP redirects and environment proxies and uses its own OpenTelemetry provider in a separate process.
 
@@ -108,7 +116,7 @@ The dataset has nine controller/REPL cases plus four **synthetic protocol** case
 
 The suite gate requires every expected case exactly once and every case/evaluator to pass. Missing/duplicate/failed cases cannot be hidden by a good average. Return code 0 means the suite passed; 2 means a case or experiment/export requirement failed. `--experiment --live` is refused. These experiments consume no hosted model quota; ordinary `eval --live` remains a separate authorized-provider operation.
 
-Experiments use a separate process with a fresh SDK/OpenTelemetry setup and a 15-minute execution deadline. Cancellation/timeout gives the worker up to 15 additional seconds to unwind Docker/SDK cleanup before forced termination; abrupt failure can still require inspecting owned test containers. Keys stay in memory; model credentials are excluded, while local Docker connection settings are forwarded. Unlike optional session export, an explicitly requested experiment requires a working local Langfuse service. Use the printed/saved local experiment URL to compare runs. No hosted dataset or UI code-evaluator dispatcher is required. SDK experiments and scores are [documented core features](https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk); [self-host feature availability](https://langfuse.com/pricing-self-host) differs from hosted paid plans.
+Experiments use a separate process with a fresh SDK/OpenTelemetry setup and a 15-minute execution deadline. Cancellation/timeout gives the worker up to 15 additional seconds to unwind Docker/SDK cleanup before forced termination; abrupt failure can still require inspecting owned test containers. Keys stay in memory; model credentials are excluded, while local Docker connection settings are forwarded. Unlike optional session export, an explicitly requested experiment requires a working local Langfuse service. Use the printed/saved local experiment URL to compare runs. No hosted dataset or UI code-evaluator dispatcher is required. The SDK labels experiment observations `sdk-experiment`; regular coding traces use `local`. Both are sent only to the same loopback service. SDK scope attributes are stripped before transport because the SDK otherwise includes its project public key there. SDK experiments and scores are [documented core features](https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk); [self-host feature availability](https://langfuse.com/pricing-self-host) differs from hosted paid plans.
 
 ## Contributor verification and remaining setup
 
@@ -122,4 +130,4 @@ uv build
 
 `test_tracing.py` checks metadata privacy, failure isolation, bounds, REPL opt-in/rejection, evidence mutation, future pair-protocol errors, SDK hierarchy/session/timestamps, safe experiment summaries, complete-suite gates, transport restrictions and upload failures. SDK tests use an in-memory exporter and mocked HTTP, not a live server or hosted model. Without the extra, SDK-specific tests skip; CI installs it explicitly.
 
-Live server ingestion, score retrieval and the end-to-end experiment UI still need verification after local project keys are configured. A successful in-memory SDK test is not evidence that this deployment accepted data. The first local audit should send a synthetic fixture, retrieve observations/scores with the Langfuse CLI and check nesting, timings, safe fields, outcome and session/experiment links. See [evaluation evidence](evaluation.md).
+A local Langfuse v4.72.0 audit verified actual REPL success/rejection traces, stored TDD scores, session grouping, and the 13-case experiment through CLI retrieval and the UI. The audit also reproduced and fixed SDK public-key scope metadata export, then reran and retrieved corrected observations. These synthetic runs made no hosted model requests; they do not establish live-provider quality or broader deployment qualification. See [evaluation evidence](evaluation.md).

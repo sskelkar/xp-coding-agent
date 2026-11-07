@@ -136,7 +136,7 @@ def local_exporter(keys):
     auth=base64.b64encode((keys['LANGFUSE_PUBLIC_KEY']+':'+keys['LANGFUSE_SECRET_KEY']).encode()).decode()
     exporter=OTLPSpanExporter(endpoint=BASE_URL+'/api/public/otel/v1/traces',
         headers={'Authorization':'Basic '+auth,'x-langfuse-ingestion-version':'4'},timeout=3,session=session)
-    return exporter
+    return strip_scope_attributes(exporter)
 
 
 def local_httpx(*,transport=None):
@@ -160,6 +160,27 @@ def local_httpx(*,transport=None):
                 raise
     httpx_client=LocalClient(trust_env=False,follow_redirects=False,timeout=3,transport=transport)
     return httpx_client
+
+
+
+def strip_scope_attributes(exporter):
+    """Langfuse's SDK scope carries its public key; transport must not export it."""
+    from opentelemetry.sdk.trace import ReadableSpan
+    from opentelemetry.sdk.trace.export import SpanExporter
+    from opentelemetry.sdk.util.instrumentation import InstrumentationScope
+    class Filtered(SpanExporter):
+        def export(self,spans):
+            cleaned=[]
+            for span in spans:
+                scope=span.instrumentation_scope
+                cleaned.append(ReadableSpan(name=span.name,context=span.context,parent=span.parent,
+                    resource=span.resource,attributes=span.attributes,events=span.events,links=span.links,
+                    kind=span.kind,status=span.status,start_time=span.start_time,end_time=span.end_time,
+                    instrumentation_scope=InstrumentationScope(scope.name,scope.version,scope.schema_url) if scope else None))
+            return exporter.export(cleaned)
+        def shutdown(self): exporter.shutdown()
+        def force_flush(self,timeout_millis=30000): return exporter.force_flush(timeout_millis)
+    return Filtered()
 
 
 def main():
