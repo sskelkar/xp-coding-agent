@@ -1,0 +1,40 @@
+README.md
+  s_75998acac156dd::t_b981f3d9aa4197 114
+docs/security.md
+  s_75998acac156dd::t_b981f3d9aa4197 39
+docs/evaluation.md
+  s_75998acac156dd::t_142603773e449a 85-93
+xp_agent/tracing/exporter.py
+  s_75998acac156dd::t_c74a2ee8370094 139,165-185
+docs/how-it-works.md
+  s_75998acac156dd::t_b981f3d9aa4197 518,544
+docs/observability-plan.md
+  s_75998acac156dd::t_b981f3d9aa4197 1
+tests/test_tracing.py
+  s_75998acac156dd::t_35bb3c6478f67b 356-377
+docs/roadmap.md
+  s_75998acac156dd::t_b981f3d9aa4197 30
+docs/tracing.md
+  s_75998acac156dd::t_b981f3d9aa4197 28-36,119,133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "75d5a86b8b51eb1277d29d32f53761b6a4214264",
+  "prompts": {},
+  "humans": {
+    "h_63c0bd0a7be43b": {
+      "author": "sskelkar <sojjwal.kelkar@deliveryhero.com>"
+    }
+  },
+  "sessions": {
+    "s_75998acac156dd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13721-4cac-7491-9dcf-ae53dbf4aa26",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "sskelkar <sojjwal.kelkar@deliveryhero.com>"
+    }
+  }
+}
