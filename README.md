@@ -115,6 +115,7 @@ Tracing is off by default. It records model-call timings, controller decisions, 
 
 ## Understand and enhance the project
 
+- [Product walkthrough](docs/product-guide.md): the user journey, complete workflow diagrams, how code gets written, your choices, and what gets delivered.
 - [How it works](docs/how-it-works.md): Python entry points, REPL/session execution, LangGraph nodes/state and storage.
 - [Testing and eval walkthrough](docs/how-it-works.md#walkthrough-testing-the-agent-and-evaluating-its-output): follow unit tests through REPL/Docker/live evals.
 - [Architecture](docs/architecture.md): layers, workflow and decisions.
