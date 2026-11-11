@@ -1,6 +1,6 @@
 # XP pair-programming redesign: product agreement and evaluation plan
 
-**Status:** proposal for review; no replacement runtime or new eval implementation exists yet.
+**Status:** replacement runtime remains proposed. An initial [evaluation foundation](pair-evaluations.md) now implements offline contract grading, independent Docker Money acceptance, business-scenario definitions, a compiled-graph conformance probe and evaluator self-tests. Production pair-graph integration, guarded test evolution, persistent model sessions, recovery and live qualification remain unimplemented/unrun.
 
 **Baseline:** `f09bde5578e9ad23eb43ae35f78a2c2468b62f89`.
 
@@ -258,11 +258,11 @@ Compare through a declared thin API adapter or an agreed executable interface, s
 | Result correctness | Withheld requirement-aligned acceptance checks. | Required checks pass, or run is explicitly incomplete/failed. |
 | Memory and recovery | History-delivery assertions, behavior dependent on prior decisions, injected restart cases. | Hard gate for state consistency; live reasoning success reported separately. |
 | Demo accuracy | Executed examples linked to the demonstrated revision. | Hard gate for fabricated working behavior; human usefulness is reviewed separately. |
-| Design and collaboration quality | Explicit human rubric: clarity, useful questions, response to evidence, unnecessary complexity. | Qualitative review; optional model judge is advisory, not the release authority. |
+| Design and collaboration quality | Explicit human rubric: clarity, useful questions, response to evidence, unnecessary complexity. | Human review only for qualitative judgments; no LLM judge. |
 | Efficiency | Active time, provider requests, reported tokens, retries, user interruptions and discussion volume. | Measurements with unknown usage/cost explicit; not a substitute for correctness. |
 | Trace integration | Fresh run ID readback and metadata privacy checks. | Separate integration gate; ordinary tracing failure must not falsify coding status. |
 
-No blended average may conceal a hard violation. Distinguish pass, fail, blocked, cancelled, skipped and not run. Report valid partial TDD progress separately from completed business behavior. A deliberately invalid fixture passes only when the system detects the intended violation.
+Use deterministic assertions and independently executed acceptance for automated grades. No LLM judge is used; human review handles qualitative questions that are not yet executable. No blended average may conceal a hard violation. Distinguish pass, fail, blocked, cancelled, skipped and not run. Report valid partial TDD progress separately from completed business behavior. A deliberately invalid fixture passes only when the system detects the intended violation.
 
 For live evals, record provider/model/version where available, configuration, fixture version, budget, repetition index, initial commit and run IDs. Start with five repetitions per live scenario to expose obvious variation, clearly treating this as a pilot rather than statistical proof. Do not tune on the held-out scenarios and then continue calling them held out.
 

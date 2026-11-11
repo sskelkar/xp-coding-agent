@@ -136,6 +136,8 @@ uv run xp-agent eval --output eval-results/scripted.json
 uv build
 ```
 
+The proposed two-agent redesign has separate [evaluation tools](docs/pair-evaluations.md): offline contract grading, compiled-LangGraph conformance probes, public business scenarios and independent Docker Money acceptance. These tools do not implement or qualify a two-agent runtime. Inspect their catalog with `uv run python -m xp_agent.pair_evals catalog`.
+
 Normal tests need no credentials; Docker integration tests require the prepared image. Evals retain seven adversarial controller scenarios and add the primary REPL path: discovery, in-shell approval/rejection, linked worktree, progress, independent acceptance and original-checkout preservation. Unit tests additionally cover multiple increments, cancellation/restart continuation and refusal to resume changed files.
 
 Live evals now enter through the REPL too:

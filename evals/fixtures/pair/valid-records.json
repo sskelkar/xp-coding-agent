@@ -1,0 +1,255 @@
+{
+  "version": 1,
+  "events": [
+    {
+      "kind": "agreement",
+      "id": "agreement-1",
+      "actor": "user",
+      "revision": 1
+    },
+    {
+      "kind": "step",
+      "id": "1-red",
+      "actor": "A",
+      "cycle": 1,
+      "phase": "red",
+      "before": "v0",
+      "after": "v1",
+      "agreement": 1,
+      "context": "context-A",
+      "history": [
+        "agreement-1"
+      ],
+      "report": {
+        "returncode": 1,
+        "passed": [
+          "old"
+        ],
+        "failed": [
+          "new-1"
+        ],
+        "errors": [],
+        "skipped": [],
+        "revision": "v1",
+        "required": [
+          "old"
+        ]
+      }
+    },
+    {
+      "kind": "step",
+      "id": "1-green",
+      "actor": "B",
+      "cycle": 1,
+      "phase": "green",
+      "before": "v1",
+      "after": "v2",
+      "agreement": 1,
+      "context": "context-B",
+      "history": [
+        "agreement-1",
+        "1-red"
+      ],
+      "report": {
+        "returncode": 0,
+        "passed": [
+          "old",
+          "new-1"
+        ],
+        "failed": [],
+        "errors": [],
+        "skipped": [],
+        "revision": "v2",
+        "required": [
+          "old",
+          "new-1"
+        ]
+      }
+    },
+    {
+      "kind": "step",
+      "id": "1-refactor",
+      "actor": "B",
+      "cycle": 1,
+      "phase": "refactor",
+      "before": "v2",
+      "after": "v3",
+      "agreement": 1,
+      "context": "context-B",
+      "history": [
+        "agreement-1",
+        "1-red",
+        "1-green"
+      ],
+      "report": {
+        "returncode": 0,
+        "passed": [
+          "old",
+          "new-1"
+        ],
+        "failed": [],
+        "errors": [],
+        "skipped": [],
+        "revision": "v3",
+        "required": [
+          "old",
+          "new-1"
+        ]
+      }
+    },
+    {
+      "kind": "step",
+      "id": "2-red",
+      "actor": "B",
+      "cycle": 2,
+      "phase": "red",
+      "before": "v3",
+      "after": "v4",
+      "agreement": 1,
+      "context": "context-B",
+      "history": [
+        "agreement-1",
+        "1-red",
+        "1-green",
+        "1-refactor"
+      ],
+      "report": {
+        "returncode": 1,
+        "passed": [
+          "old",
+          "new-1"
+        ],
+        "failed": [
+          "new-2"
+        ],
+        "errors": [],
+        "skipped": [],
+        "revision": "v4",
+        "required": [
+          "old"
+        ]
+      }
+    },
+    {
+      "kind": "step",
+      "id": "2-green",
+      "actor": "A",
+      "cycle": 2,
+      "phase": "green",
+      "before": "v4",
+      "after": "v5",
+      "agreement": 1,
+      "context": "context-A",
+      "history": [
+        "agreement-1",
+        "1-red",
+        "1-green",
+        "1-refactor",
+        "2-red"
+      ],
+      "report": {
+        "returncode": 0,
+        "passed": [
+          "old",
+          "new-2",
+          "new-1"
+        ],
+        "failed": [],
+        "errors": [],
+        "skipped": [],
+        "revision": "v5",
+        "required": [
+          "old",
+          "new-2"
+        ]
+      }
+    },
+    {
+      "kind": "step",
+      "id": "2-refactor",
+      "actor": "A",
+      "cycle": 2,
+      "phase": "refactor",
+      "before": "v5",
+      "after": "v6",
+      "agreement": 1,
+      "context": "context-A",
+      "history": [
+        "agreement-1",
+        "1-red",
+        "1-green",
+        "1-refactor",
+        "2-red",
+        "2-green"
+      ],
+      "report": {
+        "returncode": 0,
+        "passed": [
+          "old",
+          "new-2",
+          "new-1"
+        ],
+        "failed": [],
+        "errors": [],
+        "skipped": [],
+        "revision": "v6",
+        "required": [
+          "old",
+          "new-2"
+        ]
+      }
+    },
+    {
+      "kind": "demo",
+      "id": "demo-1",
+      "actor": "controller",
+      "revision": "v6",
+      "samples": [
+        {
+          "input": "5 times 2",
+          "expected": "10",
+          "actual": "10"
+        }
+      ]
+    },
+    {
+      "kind": "feedback",
+      "id": "feedback-1",
+      "actor": "user",
+      "demo": "demo-1",
+      "decision": "accept",
+      "revision": 1
+    }
+  ],
+  "snapshots": {
+    "v0": {
+      "money.py": "pass\n",
+      "test_money.py": "pass\n"
+    },
+    "v1": {
+      "money.py": "pass\n",
+      "test_money.py": "pass\n# 1-red\n"
+    },
+    "v2": {
+      "money.py": "pass\n# 1-green\n",
+      "test_money.py": "pass\n# 1-red\n"
+    },
+    "v3": {
+      "money.py": "pass\n# 1-green\n# 1-refactor\n",
+      "test_money.py": "pass\n# 1-red\n"
+    },
+    "v4": {
+      "money.py": "pass\n# 1-green\n# 1-refactor\n",
+      "test_money.py": "pass\n# 1-red\n# 2-red\n"
+    },
+    "v5": {
+      "money.py": "pass\n# 1-green\n# 1-refactor\n# 2-green\n",
+      "test_money.py": "pass\n# 1-red\n# 2-red\n"
+    },
+    "v6": {
+      "money.py": "pass\n# 1-green\n# 1-refactor\n# 2-green\n# 2-refactor\n",
+      "test_money.py": "pass\n# 1-red\n# 2-red\n"
+    }
+  },
+  "status": "completed"
+}
