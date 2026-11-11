@@ -68,6 +68,7 @@ def build_graph(ops, checkpointer):
             valid = (clean and report['returncode']==0 and bool(passed) and not failed and required <= passed)
         if not valid:return ops.reject(state,'Phase test requirement failed')
         accepted = {**state, **ops.accept(state)}
+        if accepted['status']=='blocked':return accepted
         if phase=='red':
             return {**accepted,'phase':'green','required':sorted(passed|failed),'attempts':0}
         if phase=='green' and ops.refactoring:
@@ -98,17 +99,18 @@ def build_graph(ops, checkpointer):
         return 'prepare_demo' if state['status'] in {'question','demo'} else next_node
     graph.add_conditional_edges('discuss_a',lambda s:after_discussion(s,'discuss_b'))
     graph.add_conditional_edges('discuss_b',lambda s:after_discussion(s,'propose'))
-    graph.add_conditional_edges('propose',lambda s:after_discussion(s,'run_tests'))
+    graph.add_conditional_edges('propose',lambda s:'propose' if s['status']=='retry' else after_discussion(s,'run_tests'))
     graph.add_conditional_edges('run_tests',lambda s:END if s['status']=='blocked' else 'bootstrap' if s['status']=='scaffold_needed' else 'accept')
     graph.add_conditional_edges('bootstrap',lambda s:END if s['status']=='blocked' else 'run_tests')
     def advance(state):
         if state['status']=='blocked':return END
         if state['status']=='retry':return 'propose'
+        if ops.checkin_due(state):return 'prepare_demo'
         if state['phase']!='red':return 'propose'
         if ops.demo_due(state):return 'prepare_demo'
         return 'discuss_a'
     graph.add_conditional_edges('accept',advance)
-    graph.add_edge('prepare_demo','business')
+    graph.add_conditional_edges('prepare_demo',lambda s:END if s['status']=='blocked' else 'business')
     graph.add_conditional_edges('business',lambda s:END if s['status'] in {'accepted','blocked','rejected'} else 'discuss_a')
     return graph.compile(checkpointer=checkpointer)
 
@@ -126,6 +128,7 @@ class ProbeOperations:
     def accept(self,state):return {'status':'running'}
     def reject(self,state,reason):return {'status':'blocked','reason':reason}
     def bootstrap(self,state):return {'status':'blocked'}
+    def checkin_due(self,state):return False
     def demo_due(self,state):return state['cycle']>2
     def prepare_demo(self,state):return {'demo':{'kind':'demo','message':'Probe complete'}}
     def feedback(self,state,answer):return {'status':'accepted' if answer=='accept' else 'blocked'}
