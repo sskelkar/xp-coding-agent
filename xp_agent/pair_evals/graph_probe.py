@@ -53,8 +53,11 @@ class ProbePorts:
             code = 0
         if self.scenario == 'green_fails' and token == '1':
             code = 1
-        report = {'returncode': code, 'failed': ['synthetic_assertion'] if code else [],
-                  'passed': [] if code else ['synthetic_assertion'], 'errors': [], 'skipped': []}
+        cycle = int(token) // 2
+        previous = [f'synthetic_{i}' for i in range(cycle)]
+        current = f'synthetic_{cycle}'
+        report = {'returncode': code, 'failed': [current] if code else [],
+                  'passed': previous if code else previous + [current], 'errors': [], 'skipped': []}
         self.events.append({'kind': 'runner', 'proposal': token, 'returncode': code, 'graph_task': _task_identity()})
         return report
 
