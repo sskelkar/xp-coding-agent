@@ -1,8 +1,10 @@
 # XP Coding Agent
 
-A local interactive coding agent for small Python/pytest projects. Describe a goal, review the plan, and type `approve`. The controller runs **red → green → refactor** for each approved increment, verifies tests in Docker, and delivers a reviewable Git branch and evidence.
+A local, outcome-led XP pair-programming agent for small Python/pytest projects. Describe a goal and confirm the intended result. Two persistent partner identities discuss the next behavior, alternate test-writing and implementation, and demonstrate working increments for your feedback.
 
-The model proposes code; the controller validates edits, runs tests and decides whether a phase passed. Codex and Claude Code use the same workflow. This is a learning project and a bounded prototype, not a claim of production readiness.
+LangGraph owns handoffs and controller gates; generated code runs in restricted Docker tests. Partner conversations are replayed from SQLite-backed session state rather than reset each turn. This branch also retains the legacy single-agent shell and batch commands explicitly.
+
+Read the [pair runtime guide](docs/pair-runtime.md) for the current product flow and verification limits.
 
 ## Install
 
@@ -30,14 +32,41 @@ claude auth login --sso
 
 See [provider configuration](docs/providers.md) for API keys, Claude OAuth tokens and account limitations. Credentials never belong in tasks, plans, Git or chat.
 
-## Use the interactive shell
+## Pair workflow (default)
+
+After installation and authentication:
 
 ```sh
 cd /absolute/path/to/your-project
-xp-coding-agent
+xp-coding-agent --goal 'Describe the behavior you want'
+# Explicit equivalent:
+xp-agent pair --goal 'Describe the behavior you want'
 ```
 
-A typical session:
+Type `confirm` after reviewing the outcome, or clarify it. The pair discusses small behaviors, writes real code/tests in a private snapshot repository, and pauses at executed demonstrations or business questions. Type `accept` only for a satisfactory working demo, `continue` to keep working, or enter a clarification. There is no detailed implementation-plan approval.
+
+Choose provider/model/authentication with startup flags, for example `--provider codex --model gpt-6-luna --auth cli`. Both partners use that explicitly selected provider with separate continuing histories. Defaults are two attempts per coding phase, a 900-second active execution budget, at most 12 cycles and a demo after two cycles; startup options can bound these. User waiting time is excluded.
+
+The terminal prints the private session path. Restart with:
+
+```sh
+xp-agent pair --resume /absolute/path/to/pair-session
+```
+
+Resume retains the agreement, histories, code, provider and remaining budgets. Outputs include `workspace/`, `changes.patch`, private state/evidence, the SQLite checkpoint database and `result.md`. Successful work is committed inside the snapshot repository for manual integration; the original project is not changed or integrated automatically.
+
+For managed-cloud setup and writable cache/state paths, see [environment instructions](environment/README.md). After upgrading this branch, refresh locked dependencies with `uv sync --frozen --extra tracing`; reinstall the global editable tool if using it rather than `uv run`.
+
+## Legacy single-agent shell
+
+The following shell commands and detailed plan approval belong to the retained legacy interface. Launch it explicitly with `xp-coding-agent repl`.
+
+```sh
+cd /absolute/path/to/your-project
+xp-coding-agent repl
+```
+
+A typical legacy session:
 
 ```text
 xp> Make whitespace normalization collapse runs to one space and strip the ends.
@@ -136,7 +165,7 @@ uv run xp-agent eval --output eval-results/scripted.json
 uv build
 ```
 
-The proposed two-agent redesign has separate [evaluation tools](docs/pair-evaluations.md): offline contract grading, compiled-LangGraph conformance probes, public business scenarios and independent Docker Money acceptance. These tools do not implement or qualify a two-agent runtime. Inspect their catalog with `uv run python -m xp_agent.pair_evals catalog`.
+The two-agent runtime is exercised with `uv run --frozen --extra tracing xp-agent eval --pair --output eval-results/pair.json`. This uses scripted partners, the production graph and real Docker Money acceptance; add `--live` only for an authorized hosted-provider run. No LLM judge is used. The separate [evaluation tools](docs/pair-evaluations.md) provide contract grading, graph probes, business scenarios and independent Money checks. Inspect their catalog with `uv run python -m xp_agent.pair_evals catalog`.
 
 Normal tests need no credentials; Docker integration tests require the prepared image. Evals retain seven adversarial controller scenarios and add the primary REPL path: discovery, in-shell approval/rejection, linked worktree, progress, independent acceptance and original-checkout preservation. Unit tests additionally cover multiple increments, cancellation/restart continuation and refusal to resume changed files.
 

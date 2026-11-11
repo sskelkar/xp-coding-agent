@@ -4,6 +4,7 @@ The caller must capture these records from controller actions and bind runner
 reports to actual artifacts. This module neither executes nor orchestrates agents.
 """
 import math
+import ast
 
 STEP_FIELDS = {'actor', 'cycle', 'phase', 'before', 'after', 'agreement', 'context', 'history', 'report'}
 GATES = ('ownership', 'ordering', 'revision_chain', 'runner_binding', 'tdd',
@@ -11,29 +12,31 @@ GATES = ('ownership', 'ordering', 'revision_chain', 'runner_binding', 'tdd',
 
 
 def _validate(value):
-    if not isinstance(value, dict) or value.get('version') != 1:
-        raise ValueError('Expected evidence version 1')
+    if not isinstance(value, dict) or type(value.get('version')) is not int or value.get('version') not in (1,2):
+        raise ValueError('Expected evidence version 1 or 2')
     events, snapshots = value['events'], value['snapshots']
     if not isinstance(events, list) or not events or not isinstance(snapshots, dict) or not snapshots:
         raise ValueError('Nonempty events and snapshots required')
     if value['status'] not in {'completed', 'blocked', 'cancelled', 'waiting'}:
         raise ValueError('Unknown run status')
     for revision, files in snapshots.items():
-        if not isinstance(revision, str) or not isinstance(files, dict) or not files:
+        if not isinstance(revision, str) or not isinstance(files, dict) or (not files and value['version']==1):
             raise ValueError('Invalid snapshot')
         if not all(isinstance(p, str) and isinstance(c, str) for p, c in files.items()):
             raise ValueError('Snapshots must contain text file mappings')
     for e in events:
         if not isinstance(e, dict) or not all(isinstance(e.get(k), str) and e[k] for k in ('id', 'kind', 'actor')):
             raise ValueError('Invalid event identity')
-        if e['kind'] not in {'agreement', 'step', 'question', 'demo', 'feedback'}:
+        if e['kind'] not in ({'agreement', 'step', 'question', 'demo', 'feedback'} | ({'bootstrap'} if value['version']==2 else set())):
             raise ValueError('Unknown event kind')
         if 'active_seconds' in e and (type(e['active_seconds']) not in (int, float)
                 or not math.isfinite(e['active_seconds']) or e['active_seconds'] < 0):
             raise ValueError('Invalid active time')
         if e['kind'] == 'agreement' and type(e.get('revision')) is not int:
             raise ValueError('Agreement revision required')
-        if e['kind'] == 'step':
+        if e['kind']=='bootstrap' and not isinstance(e.get('checked'),str):
+            raise ValueError('Bootstrap validation snapshot required')
+        if e['kind'] in {'step','bootstrap'}:
             if not STEP_FIELDS <= e.keys() or type(e['cycle']) is not int or type(e['agreement']) is not int:
                 raise ValueError('Missing step evidence')
             if not all(isinstance(e[k], str) and e[k] for k in ('phase', 'before', 'after', 'context')):
@@ -62,16 +65,16 @@ def _validate(value):
 def grade_contract(evidence, *, max_cycles=3, max_active_seconds=300):
     """Check accepted steps, histories and business boundaries in offline evidence.
 
-    Test changes after red are deliberately refused here: the guarded adaptation
-    protocol is not implemented. Failed attempts/scaffold/recovery action ledgers
-    need a future schema; unsupported records fail closed instead of being ignored.
+    Test changes after red are deliberately refused: guarded adaptation is not
+    implemented. Version 2 adds controlled bootstrap. Rejected attempts and full
+    crash-recovery ledgers remain outside this accepted-transition view.
     """
     result = {'passed': False, 'status': 'insufficient_evidence', 'violations': [],
               'evidence_kind': 'offline_controller_records', 'runtime_verified': False,
               'limitations': ['Caller-supplied records; no execution or authenticity verification.',
                               'History delivery is not proof that a model used its memory.',
                               'Demo samples are declared evidence, not independently executed here.',
-                              'Bootstrap, rejected attempts, guarded test adaptation and crash recovery require a future schema.']}
+                              'Version 2 supports controlled bootstrap; rejected attempts, guarded test adaptation and crash recovery remain unqualified.']}
     try:
         events, snapshots = _validate(evidence)
     except (KeyError, TypeError, ValueError) as exc:
@@ -81,6 +84,7 @@ def grade_contract(evidence, *, max_cycles=3, max_active_seconds=300):
     violations = set()
     seen, contexts = set(), {}
     history_order, demo_ids = [], set()
+    pending_bootstrap = []
     current, phase, cycle, author = None, 'red', 1, 'A'
     agreement, waiting, accepted_business = None, None, False
     green = False
@@ -98,10 +102,41 @@ def grade_contract(evidence, *, max_cycles=3, max_active_seconds=300):
             if agreement is not None or e['actor'] != 'user' or e['revision'] < 1 or seen:
                 violations.add('business')
             agreement = e['revision']
+        elif kind == 'bootstrap':
+            if agreement is None or e['agreement']!=agreement or waiting or phase!='red' or pending_bootstrap:
+                violations.add('business')
+            if e['cycle']!=cycle or e['phase']!='bootstrap':violations.add('ordering')
+            if e['actor']!=('B' if author=='A' else 'A'):violations.add('ownership')
+            before, after = snapshots.get(e['before']),snapshots.get(e['after'])
+            checked = snapshots.get(e.get('checked'))
+            if before is None or after is None or checked is None or (current is not None and current!=e['before']):
+                violations.add('revision_chain')
+            else:
+                changed={p for p in before.keys()|after.keys() if before.get(p)!=after.get(p)}
+                if not changed or any(_is_test(p) or not p.endswith('.py') for p in changed):violations.add('edit_scope')
+                try:
+                    for p in changed:
+                        old=ast.parse(before.get(p,'')).body; new=ast.parse(after.get(p,'')).body
+                        if [ast.dump(n) for n in new[:len(old)]]!=[ast.dump(n) for n in old]:violations.add('edit_scope')
+                except (SyntaxError,TypeError):violations.add('edit_scope')
+                if any(after.get(p)!=checked.get(p) for p in after.keys()|checked.keys() if not _is_test(p)):
+                    violations.add('edit_scope')
+            report=e['report']
+            if report['revision']!=e.get('checked'):violations.add('runner_binding')
+            if (report['returncode']!=1 or not report['failed'] or report['errors'] or report['skipped']
+                    or not (previous_tests|set(report['required']))<=set(report['passed'])):violations.add('tdd')
+            if e['history']!=history_order:violations.add('memory_delivery')
+            if e['actor'] in contexts and contexts[e['actor']]!=e['context']:violations.add('memory_delivery')
+            contexts[e['actor']]=e['context']
+            current=e['after'];pending_bootstrap=[e['id']]
         elif kind == 'step':
             if agreement is None or e['agreement'] != agreement or waiting or accepted_business:
                 violations.add('business')
-            if cycles_since_feedback >= max_cycles or active_time - feedback_time >= max_active_seconds:
+            dispatch=e.get('dispatch_active',active_time)
+            if type(dispatch) not in (int,float) or not math.isfinite(dispatch) or not 0<=dispatch<=active_time:
+                violations.add('cadence')
+                dispatch=active_time
+            if cycles_since_feedback >= max_cycles or dispatch - feedback_time >= max_active_seconds:
                 violations.add('cadence')
             expected_actor = author if phase == 'red' else {'A': 'B', 'B': 'A'}[author]
             if e['actor'] != expected_actor:
@@ -126,8 +161,10 @@ def grade_contract(evidence, *, max_cycles=3, max_active_seconds=300):
                 if (e['actor'] in contexts and contexts[e['actor']] != e['context']) or contexts.get(other) == e['context']:
                     violations.add('memory_delivery')
                 contexts[e['actor']] = e['context']
-            if e['history'] != history_order:
+            expected_history=[x for x in history_order if x not in pending_bootstrap] if phase=='red' else history_order
+            if e['history'] != expected_history:
                 violations.add('memory_delivery')
+            pending_bootstrap=[]
             r = e['report']
             if r['revision'] != e['after']:
                 violations.add('runner_binding')

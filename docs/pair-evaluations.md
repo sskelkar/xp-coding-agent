@@ -1,12 +1,12 @@
 # Evaluating the proposed XP pair workflow
 
-This is the first executable evaluation foundation for the [redesign plan](xp-ping-pong-redesign-plan.md). It does not replace the shipped single-agent flow, create two persistent model sessions, or qualify a two-agent runtime. No hosted model calls are made by these tools.
+This is the first executable evaluation foundation for the [redesign plan](xp-ping-pong-redesign-plan.md). The default pair runtime is now wired to these tools; see the [runtime guide](pair-runtime.md). Standalone offline grading and reference-graph probes do not by themselves qualify a product runtime. No LLM judge is used. Standalone graders and scripted evals make no hosted model calls; the explicit runtime `eval --pair --live` option does.
 
 ## What is implemented
 
 1. A versioned offline controller-record grader for alternating ownership, phase order, snapshot continuity, declared runner binding, red/green requirements, source/test edit separation, distinct continuing context IDs, ordered history delivery, user agreement/feedback, demo samples, duplicate logical actions and bounded check-in cadence.
 2. Independent Money acceptance, executed through the existing restricted Docker runner. Positive implementations and deliberately wrong implementations exercise the oracle itself.
-3. Five public Money business scenarios, including post-demo clarification, delayed feedback, interface evolution and exchange-rate ambiguity. Scenario definitions are inputs for a future runtime integration, not claims that those flows already run.
+3. Five public Money business scenarios, including post-demo clarification, delayed feedback, interface evolution and exchange-rate ambiguity. The production Money integration exercises the bounded public API and role switching; these scenario definitions are not proof that every proposed product scenario, especially test adaptation, is supported.
 4. A complete-case suite gate: missing, duplicate, unknown, failed and unrun cases cannot be hidden by averages.
 5. A compiled-LangGraph conformance probe with instrumented partner and runner ports, real checkpoint interrupts/resume, and deliberately broken reference graphs.
 6. Tests of the evaluators with deliberately corrupted records and real candidate code.
@@ -20,7 +20,7 @@ UV_CACHE_DIR=/workspace/.cache/uv uv run --frozen --extra tracing \
   python -m xp_agent.pair_evals catalog
 ```
 
-The catalog deliberately reports scenarios and pending runtime capabilities as `not_run`, with `runtime_ready: false`. Listing scenarios is a successful CLI operation (exit 0), not a passing evaluation.
+The catalog deliberately reports scenarios and remaining qualification scenarios as `not_run`, with `runtime_ready: false`. Implemented capabilities are listed separately; the catalog itself executes no checks. Listing scenarios is a successful CLI operation (exit 0), not a passing evaluation.
 
 ## Grade controller records
 
@@ -59,7 +59,24 @@ Optional `active_seconds` must be finite, nonnegative and monotonically increasi
 
 Snapshots and reports must be collected from the controller, with execution bindings independently established by the future integration harness. This grader checks consistency of supplied records, not their authenticity. Likewise it compares supplied demo samples; it does not execute them. Source-bearing records and histories must stay private. The grader emits verdicts and counts, not snapshots or conversations.
 
-Unknown event kinds and malformed/missing records fail closed as `insufficient_evidence`. The current schema intentionally does **not** model rejected proposal attempts, controlled scaffolding, guarded test adaptation, crash-boundary recovery or actual scheduling. Duplicate accepted action IDs are detected, but this alone is not proof of exactly-once recovery. Do not silently discard unsupported events to obtain a pass.
+Unknown event kinds and malformed/missing records fail closed as `insufficient_evidence`. Schema version 1 does **not** model rejected proposal attempts, controlled scaffolding, guarded test adaptation, crash-boundary recovery or actual scheduling. Version 2 adds controlled bootstrap as described below; other limitations remain. Duplicate accepted action IDs are detected, but this alone is not proof of exactly-once recovery. Do not silently discard unsupported events to obtain a pass.
+
+## Runtime evidence schema version 2
+
+The pair runtime writes `pair-evidence.json` and its grade in the private session directory. It uses the same accepted-transition grader, with an explicit versioned bootstrap event. Empty initial file snapshots are allowed without labeling a zero-test run a passing baseline.
+
+A `bootstrap` record identifies its actor, cycle, agreement, before/after source revisions, the checked candidate revision, context/history references and actual red runner report. It must preserve existing source AST statements and tests, change only project source, and leave the pending test failing by assertion while prior regressions pass. The next accepted phase remains red. The original test author is not falsely claimed to have seen a later bootstrap event; its proposal history precedes that event, while subsequent requests receive the recorded outcome.
+
+Version 2 records can include `dispatch_active` separately from accepted-event time so a phase that crosses the time boundary is distinguished from dispatching new work after it. Runtime records grade accepted transitions; rejected-candidate detail and full private conversations are retained in session history/checkpoints, not represented as a complete crash audit by this grader. No LLM judge interprets the records.
+
+Run the integrated check with:
+
+```sh
+umask 022
+uv run --frozen --extra tracing xp-agent eval --pair --output eval-results/pair.json
+```
+
+It executes the production graph with scripted partners, real Docker source/test generation and business demos, grades the resulting version-2 records and independently runs all 33 Money checks. `verification` separates routing, real execution, record grading and live model coding. Add `--trace` for local Langfuse metadata and `--live` only for an authorized provider run. A scripted pass is not a live coding pass.
 
 ## Validate actual LangGraph handoffs without an LLM judge
 
@@ -92,9 +109,9 @@ The reference graphs in `tests/test_pair_graph_probe.py` demonstrate that the pr
 passes valid scheduling and fails wrong actors, skipped runner calls, ignored red/
 green outcomes, absent business interrupts, extra work after feedback and concurrent
 partner calls. **These are evaluation-only graphs, not the replacement product.**
-The shipped single-agent graph is not passed off as a pair graph.
+The production pair graph has a separate adapter at `xp_agent.pairing.graph.probe_factory`. It calls the same `build_graph` as real sessions, replacing dependencies, not routing. The legacy single-agent graph is not passed off as a pair graph.
 
-When implementing the pair runtime, its adapter must exercise its actual compiled
+A runtime adapter must exercise its actual compiled
 routing with these instrumented dependencies. Rebuilding the passing reference graph
 inside an adapter would only rerun the self-test and is not runtime qualification.
 The probe uses scripted partners/runner outcomes, so routing results do not establish
@@ -150,6 +167,6 @@ Tests include valid and invalid counterpart fixtures, wrong actors, absent role 
 
 ## What remains before qualifying the new product
 
-The catalog records production qualification as unrun: actual pair-runtime scheduling and concurrent-write rejection; greenfield bootstrap; safe test evolution; persistent provider sessions and memory use; interrupted-node recovery and budget preservation; actual demo execution binding; fresh pair-specific Langfuse readback; repeated live model runs and a human business pilot.
+The remaining qualification work includes guarded test evolution, model use of prior decisions in repeated live runs, arbitrary crash-window recovery, a human business-feedback pilot and broader project profiles. Production graph routing, controlled bootstrap, conversation replay, SQLite business-boundary reopening, executed demonstrations and safe pair trace metadata now have deterministic integration coverage. Live-provider access must be usable before live Money qualification can pass.
 
-Implement those integrations against the actual replacement runtime as it is built. Extend the versioned evidence schema with failing tests before accepting new event types or relaxing frozen-test rules. The existing synthetic pair scores and these offline record fixtures must never stand in for that integration evidence. Live calls require a separately authorized provider/account; none are triggered by this module.
+Keep integration evidence specific to the profile and run. The older synthetic pair scores and standalone record fixtures cannot substitute for production graph and Docker results. No model judge or automatic provider fallback is introduced.

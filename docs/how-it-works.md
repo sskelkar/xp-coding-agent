@@ -1,5 +1,8 @@
 # How the XP coding agent works
 
+**Branch update:** the default interface now uses the [two-partner runtime](pair-runtime.md). The single-agent workflow explained below remains available explicitly as `xp-agent repl`, `plan` and `run`; its implementation details are retained for reference.
+
+
 This guide assumes Java experience and no Python or LangGraph experience. It introduces the Python tools and terms used by this project, then follows a task through the implementation. You do not need to learn Python first.
 
 The agent is a local program that asks a hosted language model—a model running at the selected provider—to propose code changes. Our program controls the process: it checks the proposed changes, runs tests, decides whether to accept the changes, and records the result. LangGraph is the library used to organize the coding phases.

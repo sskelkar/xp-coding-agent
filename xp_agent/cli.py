@@ -1,4 +1,4 @@
-"""Two-step human approval: plan first; execute only an exact reviewed grant."""
+"""Default XP pair interface plus explicit legacy planning and batch commands."""
 import argparse
 import json
 from pathlib import Path
@@ -65,8 +65,16 @@ def backend_arguments(parser):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description='Local XP agent: approve once, execute verified red/green/refactor phases.')
+    actual = list(sys.argv[1:] if argv is None else argv)
+    if not actual or actual[0] not in {'plan','run','eval','repl','pair','-h','--help'}:
+        from .pairing.cli import main as pair_main
+        return pair_main(actual)
+    if actual[0]=='pair':
+        from .pairing.cli import main as pair_main
+        return pair_main(actual[1:])
+    parser = argparse.ArgumentParser(description='Outcome-led XP pairing by default; explicit legacy and evaluation commands.')
     commands = parser.add_subparsers(dest='command', required=True)
+    commands.add_parser('pair', help='Two persistent XP partners; outcome confirmation and business demos')
     plan_cmd = commands.add_parser('plan', help='Discover selected files and write a reviewable plan; no project execution')
     plan_cmd.add_argument('project', type=Path)
     plan_cmd.add_argument('--task', required=True)
@@ -83,6 +91,7 @@ def main(argv=None):
     run_cmd.add_argument('--approve', required=True, help='Full approval ID printed in plan.md')
     run_cmd.add_argument('--output', type=Path, required=True)
     eval_cmd = commands.add_parser('eval', help='Disposable fixture evals; no credentials needed unless --live')
+    eval_cmd.add_argument('--pair', action='store_true', help='Evaluate the production pair graph and independent Money acceptance')
     eval_cmd.add_argument('--live', action='store_true', help='Use selected provider on synthetic code')
     backend_arguments(eval_cmd)
     eval_cmd.add_argument('--output', type=Path, default=Path('eval-results/latest.json'))
@@ -95,9 +104,6 @@ def main(argv=None):
         command.add_argument('--trace',action=argparse.BooleanOptionalAction,default=None,
                              help='Opt in to local metadata tracing at 127.0.0.1:4000; default off or saved REPL preference')
     eval_cmd.add_argument('--experiment',action='store_true',help='Run the scripted suite as a local Langfuse SDK experiment; no live calls')
-    actual = list(sys.argv[1:] if argv is None else argv)
-    if not actual or actual[0] not in {'plan','run','eval','repl','-h','--help'}:
-        actual.insert(0, 'repl')
     args = parser.parse_args(actual)
     try:
         if args.command == 'repl':
@@ -122,6 +128,13 @@ def main(argv=None):
             verify_approval(plan, args.approve)
             with tracing.operation('xp.batch',enabled=args.trace,directory=args.output):
                 return perform_run(plan, args.output)
+        if args.pair:
+            if args.experiment:raise PolicyError('Pair evaluation has its own graph and Money checks; --experiment is legacy-only')
+            from .pairing.evals import evaluate as evaluate_pair
+            report=evaluate_pair(args.output,live=args.live,provider=args.provider or 'codex',model=args.model,auth=args.auth or 'cli',trace=bool(args.trace))
+            write_json(args.output,report)
+            print(json.dumps(report,indent=2))
+            return 0 if report['passed'] else 2
         if args.experiment:
             if args.trace is False: raise PolicyError('--experiment requires tracing; omit --no-trace')
             if args.live: raise PolicyError('--experiment uses scripted fixtures only; omit --live')

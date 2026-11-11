@@ -146,3 +146,19 @@ def test_current_schema_explicitly_refuses_test_evolution_and_bootstrap():
     assert grade(value)['status'] == 'insufficient_evidence'
     value = trace();value['events'][3]['phase'] = 'adapt_tests'
     assert 'ordering' in grade(value)['violations']
+
+
+def test_version_two_bootstrap_preserves_test_first_history_and_regressions():
+    value=trace();value['version']=2
+    value['snapshots']['seed']={'test_money.py':value['snapshots']['v0']['test_money.py']}
+    bootstrap=dict(kind='bootstrap',id='setup',actor='B',cycle=1,phase='bootstrap',
+                   before='seed',after='v0',checked='v1',agreement=1,context='context-B',
+                   history=['agreement-1'],report=deepcopy(value['events'][1]['report']))
+    value['events'].insert(1,bootstrap)
+    for event in value['events'][3:]:
+        if event['kind']=='step':event['history'].insert(1,'setup')
+    assert grade(value)['status']=='passed'
+    bad=deepcopy(value);bad['events'][1]['report']['returncode']=0
+    assert not grade(bad)['passed']
+    bad=deepcopy(value);bad['snapshots']['v0']['test_money.py']='weakened tests'
+    assert not grade(bad)['passed']

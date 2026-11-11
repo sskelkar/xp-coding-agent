@@ -1,6 +1,6 @@
 # XP pair-programming redesign: product agreement and evaluation plan
 
-**Status:** replacement runtime remains proposed. An initial [evaluation foundation](pair-evaluations.md) now implements offline contract grading, independent Docker Money acceptance, business-scenario definitions, a compiled-graph conformance probe and evaluator self-tests. Production pair-graph integration, guarded test evolution, persistent model sessions, recovery and live qualification remain unimplemented/unrun.
+**Status:** an initial bounded [pair runtime](pair-runtime.md) now implements production graph routing, conversation replay, SQLite business checkpoints, controlled bootstrap, executed demos and integration with the [evaluation tools](pair-evaluations.md). Scripted production Money integration passes; live qualification, guarded test evolution and arbitrary crash recovery remain incomplete. The sections below preserve the target design and its broader acceptance plan.
 
 **Baseline:** `f09bde5578e9ad23eb43ae35f78a2c2468b62f89`.
 

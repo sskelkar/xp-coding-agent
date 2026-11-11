@@ -40,12 +40,16 @@ def build_graph(ops, checkpointer):
     graph = StateGraph(PairState)
     def initialize(state): return ops.initialize(state)
     def confirm(state):
+        goal=state['goal']
         if not ops.confirmed:
-            answer = interrupt({'kind':'confirm_goal','goal':state['goal'],
-                                'message':'Confirm this outcome, or supply a clarification.'})
-            if answer != 'confirm':
-                return {'status':'rejected','reason':'Outcome not confirmed'}
-        return ops.confirm(state)
+            while True:
+                answer = interrupt({'kind':'confirm_goal','goal':goal,
+                                    'message':'Confirm this outcome, or supply a clarification.'})
+                if answer=='confirm':break
+                if not isinstance(answer,str) or not answer.strip() or answer in {'reject','quit','cancel'}:
+                    return {'status':'rejected','reason':'Outcome not confirmed'}
+                goal+='\nBusiness clarification: '+answer
+        return ops.confirm({**state,'goal':goal})
     def baseline(state):return ops.baseline(state)
     def discussion_a(state):return ops.discuss('A',state)
     def discussion_b(state):return ops.discuss('B',state)

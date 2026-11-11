@@ -1,5 +1,8 @@
 # XP Coding Agent: from your request to reviewable code
 
+**Branch update:** the default interface now uses the [two-partner runtime](pair-runtime.md). The single-agent workflow explained below remains available explicitly as `xp-agent repl`, `plan` and `run`; its implementation details are retained for reference.
+
+
 This guide explains the product experience: what you ask for, how the agent writes code, which choices you control, and what it delivers. No Python or agent-framework knowledge is assumed. It describes the implemented prototype; planned capabilities are marked separately.
 
 XP stands for **Extreme Programming**, the development approach that inspires its small changes and test-first workflow. You give the agent a focused coding goal, review its plan, and approve it. It then attempts the agreed changes, checks them with real tests, and returns code for you to review.

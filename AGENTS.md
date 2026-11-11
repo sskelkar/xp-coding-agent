@@ -1,6 +1,6 @@
 # Working on XP Coding Agent
 
-This is a learning project and a usable, bounded Python/pytest coding prototype. Preserve a working CLI after each small increment. These instructions apply to the whole repository.
+This is a learning project and a bounded Python/pytest coding prototype. On this branch the default interface is the outcome-led two-partner flow; explicit `repl`, `plan` and `run` retain the legacy single-agent paths. Read `docs/pair-runtime.md` before changing pair behavior. Preserve a working CLI after each small increment. These instructions apply to the whole repository.
 
 ## Read first
 
@@ -34,11 +34,12 @@ Use `uv run xp-agent --help` for CLI options. Live evals make hosted requests an
 ## Invariants to preserve
 
 - The controller, not a model, approves edits and phase transitions. Meaningful red precedes green. Accepted tests cannot be modified in green/refactor under the current policy.
+- Pair greenfield bootstrap is an explicit exception before behavioral red: append source scaffolding without changing existing AST statements or tests, independently verify an assertion failure with prior regressions passing, then enter green. Never count a missing-symbol error or a zero-test run as behavioral red.
 - Models return bounded structured proposals. Only the controller writes the accepted checkout; tests run through the restricted Docker runner, never on the host.
-- Provider/model/auth mode belong to the approved plan. Never silently fall back to another provider, inherit unapproved transport settings, or put credentials into prompts, plans, reports or Git.
+- Provider/model/auth mode belong to the confirmed outcome/session (or the approved legacy plan). Never silently fall back to another provider, inherit unapproved transport settings, or put credentials into prompts, plans, reports or Git.
 - `verified` means automated gates passed, not human product acceptance. Record failures and rejected candidates honestly. Do not mark a partial run complete.
-- `checkpoint` in the current CLI is a JSON-save callback, not a durable LangGraph checkpointer. Interactive session continuation reconciles saved files/approval and preserves remaining budgets; extend it without blind side-effect replay.
-- Keep one controller writer. Pairing and context-reset experiments are optional future work, not requirements for useful single-agent operation.
-- Preserve original project files. Interactive Git runs use approved linked worktrees; batch/non-Git runs use independent snapshots. Preserve that distinction and never integrate automatically.
+- The legacy `checkpoint` callback is a JSON-save callback, not a durable LangGraph checkpointer. Pair sessions use SQLite LangGraph checkpoints and explicit conversation replay; neither design promises exactly-once external model calls. Interactive session continuation reconciles saved files/approval and preserves remaining budgets; extend it without blind side-effect replay.
+- Keep one controller writer. The pair graph owns all handoffs; A-red/B-green then B-red/A-green. Separate identities and continuing histories must not be reset per turn. Context compaction and guarded test-interface evolution remain unimplemented.
+- Preserve original project files. Legacy interactive Git runs use approved linked worktrees; batch/non-Git and the initial pair runtime use independent snapshots. Preserve that distinction and never integrate automatically.
 
 Never add employer/project identifiers, personal machine paths, real profiles, credentials or local run artifacts to public documentation. Use generic projects and synthetic examples.

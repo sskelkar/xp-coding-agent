@@ -130,3 +130,14 @@ def test_codex_malformed_events_fail_as_backend_errors(event, tmp_path, monkeypa
     monkeypatch.setattr(backend, 'run', lambda *a, **k: Result(0, json.dumps(event)))
     with pytest.raises(BackendError):
         CodexBackend().propose('red', {}, 30)
+
+
+def test_transport_preserves_system_proxy_and_ca_without_inheriting_provider_overrides(monkeypatch):
+    from xp_agent.backend import create_backend
+    monkeypatch.setenv('HTTPS_PROXY','http://system-proxy.invalid:8080')
+    monkeypatch.setenv('SSL_CERT_FILE','/tmp/system-ca.pem')
+    monkeypatch.setenv('ANTHROPIC_BASE_URL','https://unapproved.invalid')
+    env=create_backend().environment()
+    assert env['HTTPS_PROXY']=='http://system-proxy.invalid:8080'
+    assert env['SSL_CERT_FILE']=='/tmp/system-ca.pem'
+    assert 'ANTHROPIC_BASE_URL' not in env

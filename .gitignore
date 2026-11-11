@@ -58,3 +58,10 @@ result.md
 
 # Metadata-only traces are private local run artifacts too.
 trace-*.json
+
+# Private pair conversation, agreement and controller evidence artifacts.
+pair-manifest.json
+pair-state.json
+pair-result.json
+pair-evidence.json
+pair-contract-grade.json

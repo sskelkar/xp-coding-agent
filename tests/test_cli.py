@@ -115,3 +115,12 @@ def test_experiment_refuses_live_or_explicit_no_trace_before_any_request(capsys)
     assert main(['eval','--experiment','--live'])==2
     assert main(['eval','--experiment','--no-trace'])==2
     assert 'requires tracing' in capsys.readouterr().err
+
+
+def test_default_entry_point_uses_pair_flow_and_legacy_repl_is_explicit(monkeypatch):
+    from xp_agent.pairing import cli as pair_cli
+    from xp_agent import repl
+    monkeypatch.setattr(pair_cli,'main',lambda args:23)
+    monkeypatch.setattr(repl,'shell',lambda *a,**k:17)
+    assert main([])==23
+    assert main(['repl'])==17

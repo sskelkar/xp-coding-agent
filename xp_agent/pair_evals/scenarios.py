@@ -40,17 +40,18 @@ SCENARIOS = (
 
 # Deliberately not claimed by offline record grading or Money result acceptance.
 PENDING = (
-    'production_pair_graph_turn_enforcement', 'concurrent_write_rejection',
-    'greenfield_scaffold_protocol', 'guarded_test_evolution',
-    'persistent_provider_histories', 'model_use_of_prior_decisions',
-    'crash_boundary_recovery', 'resource_budget_preservation',
-    'real_business_demo_execution_binding', 'fresh_pair_langfuse_readback',
-    'repeated_live_pair_runs', 'human_business_feedback_pilot',
+    'guarded_test_evolution', 'live_model_use_of_prior_decisions',
+    'arbitrary_crash_boundary_recovery', 'repeated_live_pair_runs',
+    'human_business_feedback_pilot', 'broader_project_profiles',
 )
+
 
 
 def catalog():
     return {'version': 1, 'runtime_ready': False,
+            'production_pair_eval_available': True,
+            'implemented_capabilities': ['production_graph_routing','controlled_greenfield_bootstrap',
+                'conversation_replay','sqlite_business_boundary_resume','executed_demos','pair_trace_metadata'],
             'scenarios': [dict(s, status='not_run') for s in SCENARIOS],
             'pending_runtime_checks': [{'id': name, 'status': 'not_run'} for name in PENDING]}
 
