@@ -47,3 +47,17 @@ def test_pair_eval_flag_is_wired_and_legacy_experiment_combination_is_refused(tm
     seen.clear()
     assert entry(['eval','--pair','--experiment'])==2
     assert not seen
+
+
+def test_pair_rejects_known_secret_patterns_before_persisting_business_input(tmp_path):
+    import pytest
+    from xp_agent.pairing.session import Session
+    project=tmp_path/'project';project.mkdir()
+    value='sk-'+'x'*30
+    with pytest.raises(ValueError,match='secret'):
+        Session.create(tmp_path/'unsafe',project,value)
+    assert not (tmp_path/'unsafe').exists()
+    session=Session.create(tmp_path/'safe',project,'Money')
+    session.advance()
+    with pytest.raises(ValueError,match='secret'):session.advance(value)
+    assert value.encode() not in (tmp_path/'safe/checkpoints.sqlite').read_bytes()

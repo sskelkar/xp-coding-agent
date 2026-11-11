@@ -1,18 +1,48 @@
 # Outcome-led XP pair runtime
 
-This branch is building the replacement workflow described in the [redesign plan](xp-ping-pong-redesign-plan.md). The legacy interactive/batch agent remains available while integration proceeds.
+This branch implements the initial bounded replacement described in the [redesign plan](xp-ping-pong-redesign-plan.md). Pairing is the default; the legacy interactive/batch interfaces remain explicitly available. Scripted production integration is verified; live-provider qualification is separately limited below.
 
-## Checkpoint 1: production graph routing
+## Production graph routing
 
 `xp_agent/pairing/graph.py` owns the phase transitions and actor selection. Agent A authors the first test, B implements it; after green/cleanup, B authors the next test and A implements. Candidate tests run in a separate graph node. Neither partner chooses who acts next. Business feedback uses an actual LangGraph interrupt.
+
+```mermaid
+flowchart TD
+    Goal["User supplies an outcome"] --> Confirm["Restate and confirm with the user"]
+    Confirm --> Baseline["Inspect the safe snapshot and baseline"]
+    Baseline --> Discuss["A and B discuss the next behavior"]
+    Discuss --> Propose["Graph assigns actor and phase"]
+    Propose --> Tests["Run candidate tests in Docker"]
+    Tests --> Missing{"Missing symbols during red?"}
+    Missing -->|"Yes"| Scaffold["Other partner adds controlled scaffolding"]
+    Scaffold --> Tests
+    Missing -->|"No"| Gate{"Phase requirement satisfied?"}
+    Gate -->|"No"| Retry{"Attempts and time remain?"}
+    Retry -->|"Yes"| Propose
+    Retry -->|"No"| Stop["Stop with retained partial work"]
+    Gate -->|"Yes"| Accept["Controller accepts files and records evidence"]
+    Accept --> Cycle{"Cleanup and cycle complete?"}
+    Cycle -->|"No: green or cleanup next"| Propose
+    Cycle -->|"Yes"| Rotate["Rotate test author and implementer"]
+    Rotate --> Due{"Demo or check-in due?"}
+    Due -->|"No"| Discuss
+    Due -->|"Yes"| Demo["Execute examples or report partial progress"]
+    Discuss -->|"Business question or ready to demonstrate"| Demo
+    Propose -->|"Business question"| Demo
+    Demo --> User["LangGraph interrupts for user feedback"]
+    User -->|"Continue or clarify"| Discuss
+    User -->|"Accept a working demo"| Deliver["Commit snapshot result and retain the patch"]
+```
+
+Provider failures, invalid infrastructure, failed scaffolding and exhausted resource limits can stop execution directly. These exception paths preserve the accepted snapshot; they do not produce a verified result. Discussion and code-generation requests are serialized, and retries stay with the assigned actor.
 
 The same `build_graph` function is used by the runtime and the conformance adapter. `ProbeOperations` replaces partner/runner operations with instrumented doubles, not a separate passing reference graph. The production routing passes the existing compiled-graph probe for normal role reversal, premature-green rejection, failed-green rejection, business interrupt and resume.
 
 The probe runner originally reused a test identity across cycles. Production red validation correctly rejected that as a regression. Its controlled reports now preserve prior passing identities and introduce a distinct failing identity per cycle.
 
-This routing checkpoint alone does not demonstrate model coding, workspace writes, persistent partner conversations or the Money result. Those operations and their integration evidence are being added in subsequent commits. SQLite checkpoint support is installed for durable local sessions.
+The routing probe alone does not demonstrate model coding or a correct Money result. The production integration below adds workspace, conversation and independent result evidence. SQLite checkpoint support is installed for durable local sessions.
 
-## Checkpoint 2: partners, code and durable business boundaries
+## Partners, code and durable business boundaries
 
 Two `Partner` objects have fixed A/B identities. Each request includes that partner's continuing conversation from graph state, the current source snapshot, the agreement revision and actual execution feedback. Provider processes may be fresh, but the application replays accumulated conversation instead of resetting the partner's history. Finite context limits stop explicitly rather than silently truncate.
 
@@ -20,9 +50,9 @@ Two `Partner` objects have fixed A/B identities. Each request includes that part
 
 `Session` uses SQLite LangGraph checkpoints and a session writer lock. Business interrupts can be resumed through new database connections. The original project is captured into a private snapshot repository; accepted output is committed there for manual integration. This initial pair flow uses snapshots, not linked worktrees, and never writes the original project.
 
-The scripted Money integration builds multiplication, reusable values and exact USD/CHF addition from an empty project through the production graph. It observes A-red/B-green, B-red/A-green, then A-red/B-green, executes real demonstrations, and passes all 33 independent Money acceptance checks. Scripted partners supply known proposals; this verifies runtime wiring, not live model coding quality. More recovery and evaluator bindings follow in the next checkpoint.
+The scripted Money integration builds multiplication, reusable values and exact USD/CHF addition from an empty project through the production graph. It observes A-red/B-green, B-red/A-green, then A-red/B-green, executes real demonstrations, and passes all 33 independent Money acceptance checks. Scripted partners supply known proposals; this verifies runtime wiring, not live model coding quality. Business-boundary reopening and evaluator binding are covered below; arbitrary crash-window recovery remains unqualified.
 
-## Checkpoint 3: interactive product and evaluator wiring
+## Interactive product and evaluator wiring
 
 The default `xp-agent`/`xp-coding-agent` entry point now starts the pair interface. Explicit `pair` is equivalent; `repl`, `plan` and `run` retain legacy behavior. Confirm the desired outcome, correct it if necessary, and respond to working demos with `accept`, `continue` or clarification. There is no upfront implementation-plan gate. No partner request or project test executes before confirmation.
 

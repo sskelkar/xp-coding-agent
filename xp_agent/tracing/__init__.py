@@ -17,7 +17,7 @@ _parent = contextvars.ContextVar('xp_observation', default=None)
 NAMES = {'xp.plan','xp.execute','xp.batch','xp.evaluation','discover-project','plan-change',
          'prepare-workspace','execute-session','execute-increment','baseline','coding-phase','final',
          'model.select','model.propose','run-tests','controller-gate','write-report'}
-ENUMS = {'phase':{'plan','discovery','baseline','red','green','refactor','final'},
+ENUMS = {'phase':{'plan','discovery','baseline','red','green','refactor','final','discuss','bootstrap','demo'},
          'provider':{'codex','claude'},'auth':{'cli','api-key','oauth-token'},
          'status':{'running','ready','verified','blocked','cancelled','rejected'},
          'outcome':{'ok','error','cancelled'}, 'actor':{'solo','A','B'},

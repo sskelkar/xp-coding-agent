@@ -107,7 +107,7 @@ def evaluate(output,*,live=False,provider='codex',model=None,auth='cli',trace=Fa
         checks=report['contract_grade'].get('checks',{})
         tracing.set_scores({'pair_ownership_valid':checks.get('ownership'),
             'handoff_state_valid':all(checks[k] for k in ('revision_chain','runner_binding','ordering')) if checks else None,
-            'independent_acceptance_passed':bool(report['money_acceptance'] and report['money_acceptance']['passed']),
+            'independent_acceptance_passed':report['money_acceptance']['passed'] if report['money_acceptance'] is not None else None,
             'evidence_complete':report['contract_grade']['status']!='insufficient_evidence',
             'tdd_sequence':{'passed':'complete','failed':'violation','valid_partial':'valid_partial','insufficient_evidence':'insufficient_evidence'}[report['contract_grade']['status']]})
         report['trace_id']=active.trace_id if active else None

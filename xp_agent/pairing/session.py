@@ -7,7 +7,7 @@ import sqlite3
 import uuid
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
-from ..policy import discover, digest, PolicyError
+from ..policy import discover, digest, PolicyError, check_content
 from ..project import git, write_files, write_json
 from ..session import inventory
 from ..sandbox import DockerRunner
@@ -43,6 +43,7 @@ class Session:
     def create(cls,path,project,goal,*,partners=None,runner=None,provider='codex',model=None,auth='cli',
                budget=900,attempts=2,max_cycles=12,demo_every=2):
         if not goal.strip():raise ValueError('A goal is required')
+        check_content(goal)
         root=Path(path).resolve()
         if root.exists():raise ValueError('Use a new session directory; existing work is never overwritten')
         from ..backend import create_backend
@@ -74,6 +75,9 @@ class Session:
         finally:lock.close()
 
     def advance(self,answer=None,*,expected_interrupt=None):
+        if answer is not None:
+            if not isinstance(answer,str):raise ValueError('Business response must be text')
+            check_content(answer)
         with self.graph() as graph:
             snapshot=graph.get_state(self.config)
             if snapshot.values and not snapshot.next:return self._save(snapshot.values)

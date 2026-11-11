@@ -20,3 +20,9 @@ def test_pair_reply_refuses_tool_like_extra_fields_and_duplicate_paths():
     with pytest.raises(ValueError):parse_reply({**response(),'command':'run something'})
     value=response();value['edits']=[{'path':'x.py','content':'pass'}]*2
     with pytest.raises(ValueError,match='Duplicate'):parse_reply(value)
+
+
+def test_pair_trace_keeps_static_discussion_bootstrap_and_demo_phase_labels():
+    from xp_agent import tracing
+    for phase in ('discuss','bootstrap','demo'):
+        assert tracing.attributes({'actor':'B','phase':phase,'message':'private business text'})=={'actor':'B','phase':phase}
