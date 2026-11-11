@@ -1,5 +1,7 @@
 # Milestones and implementation handoff
 
+**Proposed new direction:** [XP pair-programming redesign and evaluation plan](xp-ping-pong-redesign-plan.md) records the two-agent, outcome-led workflow under discussion. It is a proposal, not implemented behavior; the status and milestones below describe the existing product.
+
 This is the public, portable continuation plan. It preserves the agreed direction without requiring private machine-local notes. The [README](../README.md) describes current commands; [How it works](how-it-works.md) explains current implementation. Future graph-node names below are design sketches, not existing APIs.
 
 ## Goal and delivery rules
