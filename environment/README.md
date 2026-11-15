@@ -1,6 +1,6 @@
 # Recreate the XP Coding Agent cloud environment
 
-This kit recreates the development environment and local Langfuse deployment validated with repository commit `75d5a86b8b51eb1277d29d32f53761b6a4214264`. It contains no generated credentials or application data.
+This kit recreates the pair runtime development environment and a local Langfuse deployment.
 
 ## Requirements
 
@@ -57,7 +57,7 @@ The generated local operator login is stored in the private service `.env` file,
 bash environment/smoke.sh
 ```
 
-This runs all 13 SDK experiment cases, traced REPL success/rejection using scripted proposals and real Git/Docker, then retrieves observations/scores from the local Langfuse API. It verifies passing suite/TDD scores, trace parent timing, plan/execution session grouping, and absence of local project keys or fixture source in observations. It makes no hosted model calls.
+The smoke command runs the scripted production pair evaluation with real Docker, then checks that local Langfuse export completed for that run.
 
 For the complete development suite:
 
@@ -66,8 +66,6 @@ umask 022
 UV_CACHE_DIR=/workspace/.cache/uv XP_DOCKER_TESTS=1 \
   uv run --frozen --extra tracing pytest -q
 ```
-
-The original local audit retrieved 16 traces, 215 observations and 78 scores. Reruns add records; those counts are not fixed assertions. The audit checks stored project data rather than selecting only the newest run, so use a fresh project when an isolated ingestion audit is required.
 
 ## Persistence and secrets
 

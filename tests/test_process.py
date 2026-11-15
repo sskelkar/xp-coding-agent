@@ -19,10 +19,13 @@ def test_output_limit_stops_runaway_worker():
 
 def test_explicit_environment_does_not_inherit_secrets(monkeypatch):
     monkeypatch.setenv('EXAMPLE_SECRET', 'do-not-pass')
-    result = run([sys.executable, '-c', 'import os; print(os.getenv("EXAMPLE_SECRET", "absent"))'], timeout=3, env={})
+    result = run([sys.executable, '-c', 'import os; print(os.getenv("EXAMPLE_SECRET", "absent"))'],
+                 timeout=3,
+                 env={})
     assert result.stdout.strip() == 'absent'
 
 
 def test_worker_closing_output_cannot_escape_deadline():
     with pytest.raises(ProcessError, match='deadline'):
-        run([sys.executable, '-c', 'import os,time; os.close(1); os.close(2); time.sleep(30)'], timeout=0.15)
+        run([sys.executable, '-c', 'import os,time; os.close(1); os.close(2); time.sleep(30)'],
+            timeout=0.15)

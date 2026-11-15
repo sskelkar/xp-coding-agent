@@ -1,158 +1,61 @@
-"""Default XP pair interface plus explicit legacy planning and batch commands."""
+"""Dispatch interactive pair sessions and evaluation runs."""
+
 import argparse
 import json
 from pathlib import Path
 import sys
-from .backend import create_backend
-from . import tracing
-from .policy import PolicyError
-from .process import run
-from .project import create_plan, verify_approval, write_json, render_plan, make_workspace, write_files, git
-from .sandbox import DockerRunner
-from .workflow import execute
-from .reporting import render_report, source_divergence
+
+from .workspace import write_json
 
 
-def heartbeat(seconds):
-    print(f'  Worker active for {seconds:.0f}s; waiting for verified evidence', file=sys.stderr, flush=True)
-
-
-def perform_run(plan, output, backend=None):
-    output = Path(output).resolve()
-    if output.exists():
-        raise PolicyError('Output already exists; use a new run directory to preserve existing work')
-    output.mkdir(parents=True, mode=0o700)
-    write_json(output / 'approved-plan.json', plan)
-    (output / 'plan.md').write_text(render_plan(plan))
-    root = make_workspace(output, plan['files'])
-    backend = backend or create_backend(plan.get('provider', 'codex'), plan['model'], plan.get('auth', 'cli'), status=heartbeat)
-    runner = DockerRunner(plan['image'], scratch=output / 'scratch', status=heartbeat)
-    previous = None
-
-    def checkpoint(state):
-        nonlocal previous
-        write_files(root, state['files'])
-        write_json(output / 'state.json', state)
-        phase = state.get('phase', 'baseline')
-        if phase != previous:
-            print(f'Phase: {phase}; status: {state["status"]}', file=sys.stderr, flush=True)
-            previous = phase
-        with (output / 'events.jsonl').open('a') as f:
-            f.write(json.dumps({'phase': phase, 'status': state['status'], 'attempts': state['attempts'],
-                                'evidence_count': len(state['evidence'])}) + '\n')
-
-    state = execute(plan, backend, runner, checkpoint)
-    git(root, 'add', '--', *state['files'])
-    diff = git(root, 'diff', '--cached', '--no-ext-diff', '--no-textconv', '--binary')
-    (output / 'changes.patch').write_text(diff)
-    if state['status'] == 'verified' and diff:
-        git(root, 'commit', '-m', 'Implement approved behavior through red-green-refactor')
-    branch = git(root, 'branch', '--show-current').strip()
-    divergence = source_divergence(plan)
-    write_json(output / 'divergence.json', divergence)
-    summary = render_report(plan, state, branch, divergence)
-    (output / 'result.md').write_text(summary)
-    print(summary)
-    print(f'Results: {output}')
-    return 0 if state['status'] == 'verified' else 2
-
-
-def backend_arguments(parser):
-    parser.add_argument('--provider', choices=('codex', 'claude'), default=None)
-    parser.add_argument('--model', help='Provider model ID or alias; default: gpt-6-luna for codex, haiku for claude')
-    parser.add_argument('--auth', choices=('cli', 'api-key', 'oauth-token'), default=None,
-                        help='Saved CLI credentials (default), provider API key, or Claude OAuth token environment variable')
+def _command_parser():
+    parser = argparse.ArgumentParser(description="Outcome-led XP pair programming.")
+    commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("pair", help="Start or resume a session with two XP partners")
+    evaluation = commands.add_parser("eval", help="Run pair graph and Money acceptance checks")
+    evaluation.add_argument("--pair", action="store_true", help=argparse.SUPPRESS)
+    evaluation.add_argument("--live",
+                            action="store_true",
+                            help="Use a hosted provider on synthetic code")
+    evaluation.add_argument("--provider", choices=("codex", "claude"), default="codex")
+    evaluation.add_argument("--model", help="Model ID or provider alias")
+    evaluation.add_argument("--auth", choices=("cli", "api-key", "oauth-token"), default="cli")
+    evaluation.add_argument("--trace", action=argparse.BooleanOptionalAction, default=False)
+    evaluation.add_argument("--output", type=Path, default=Path("eval-results/latest.json"))
+    return parser
 
 
 def main(argv=None):
-    actual = list(sys.argv[1:] if argv is None else argv)
-    if not actual or actual[0] not in {'plan','run','eval','repl','pair','-h','--help'}:
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    command = arguments[0] if arguments else None
+    if command in {"plan", "run", "repl"}:
+        print("Pairing is the only coding workflow. Use xp-agent pair or xp-agent eval.",
+              file=sys.stderr)
+        return 2
+
+    if command not in {"eval", "-h", "--help"}:
         from .pairing.cli import main as pair_main
-        return pair_main(actual)
-    if actual[0]=='pair':
-        from .pairing.cli import main as pair_main
-        return pair_main(actual[1:])
-    parser = argparse.ArgumentParser(description='Outcome-led XP pairing by default; explicit legacy and evaluation commands.')
-    commands = parser.add_subparsers(dest='command', required=True)
-    commands.add_parser('pair', help='Two persistent XP partners; outcome confirmation and business demos')
-    plan_cmd = commands.add_parser('plan', help='Discover selected files and write a reviewable plan; no project execution')
-    plan_cmd.add_argument('project', type=Path)
-    plan_cmd.add_argument('--task', required=True)
-    plan_cmd.add_argument('--source', nargs='+', required=True)
-    plan_cmd.add_argument('--tests', nargs='+', required=True)
-    plan_cmd.add_argument('--read', nargs='*', default=[])
-    backend_arguments(plan_cmd)
-    plan_cmd.add_argument('--image', default='xp-agent-tests:0.1')
-    plan_cmd.add_argument('--budget', type=int, default=600)
-    plan_cmd.add_argument('--attempts', type=int, default=2)
-    plan_cmd.add_argument('--output', type=Path, default=Path('.xp-runs/plan.json'))
-    run_cmd = commands.add_parser('run', help='Execute an exact approved plan in a new branch/snapshot')
-    run_cmd.add_argument('plan', type=Path)
-    run_cmd.add_argument('--approve', required=True, help='Full approval ID printed in plan.md')
-    run_cmd.add_argument('--output', type=Path, required=True)
-    eval_cmd = commands.add_parser('eval', help='Disposable fixture evals; no credentials needed unless --live')
-    eval_cmd.add_argument('--pair', action='store_true', help='Evaluate the production pair graph and independent Money acceptance')
-    eval_cmd.add_argument('--live', action='store_true', help='Use selected provider on synthetic code')
-    backend_arguments(eval_cmd)
-    eval_cmd.add_argument('--output', type=Path, default=Path('eval-results/latest.json'))
-    repl_cmd = commands.add_parser('repl', help='Interactive coding shell (default when no subcommand is supplied)')
-    repl_cmd.add_argument('project', nargs='?', type=Path, default=Path.cwd())
-    backend_arguments(repl_cmd)
-    repl_cmd.add_argument('--budget', type=int, default=600)
-    repl_cmd.add_argument('--attempts', type=int, default=2)
-    for command in (plan_cmd,run_cmd,eval_cmd,repl_cmd):
-        command.add_argument('--trace',action=argparse.BooleanOptionalAction,default=None,
-                             help='Opt in to local metadata tracing at 127.0.0.1:4000; default off or saved REPL preference')
-    eval_cmd.add_argument('--experiment',action='store_true',help='Run the scripted suite as a local Langfuse SDK experiment; no live calls')
-    args = parser.parse_args(actual)
+
+        return pair_main(arguments[1:] if command == "pair" else arguments)
+
+    args = _command_parser().parse_args(arguments)
+    from .evaluation.pair.runtime import evaluate
+
     try:
-        if args.command == 'repl':
-            from .repl import shell
-            return shell(args.project,provider=args.provider,model=args.model,auth=args.auth,budget=args.budget,attempts=args.attempts,trace=args.trace)
-        if args.command == 'plan':
-            if args.output.exists():
-                raise PolicyError('Plan output exists; choose a new output path')
-            image = run(['docker', 'image', 'inspect', args.image, '--format', '{{.Id}}'], timeout=10)
-            if image.returncode:
-                raise PolicyError('Build Dockerfile.tests first; image is unavailable')
-            with tracing.operation('xp.plan',enabled=args.trace,directory=args.output.parent/'traces'):
-                plan = create_plan(args.project, args.task, args.source, args.tests, create_backend(args.provider or 'codex', args.model, args.auth or 'cli', status=heartbeat),
-                               read_paths=args.read, budget=args.budget, attempts=args.attempts, image=image.stdout.strip())
-            write_json(args.output, plan)
-            markdown = args.output.with_suffix('.md')
-            markdown.write_text(render_plan(plan))
-            print(f'Review {markdown}\nApproval ID: {plan["approval_id"]}')
-            return 0
-        if args.command == 'run':
-            plan = json.loads(args.plan.read_text())
-            verify_approval(plan, args.approve)
-            with tracing.operation('xp.batch',enabled=args.trace,directory=args.output):
-                return perform_run(plan, args.output)
-        if args.pair:
-            if args.experiment:raise PolicyError('Pair evaluation has its own graph and Money checks; --experiment is legacy-only')
-            from .pairing.evals import evaluate as evaluate_pair
-            report=evaluate_pair(args.output,live=args.live,provider=args.provider or 'codex',model=args.model,auth=args.auth or 'cli',trace=bool(args.trace))
-            write_json(args.output,report)
-            print(json.dumps(report,indent=2))
-            return 0 if report['passed'] else 2
-        if args.experiment:
-            if args.trace is False: raise PolicyError('--experiment requires tracing; omit --no-trace')
-            if args.live: raise PolicyError('--experiment uses scripted fixtures only; omit --live')
-            from .tracing.experiments import run_experiment
-            report=run_experiment()
-        else:
-            from .evals import evaluate
-            report = evaluate(live=args.live, model=args.model, provider=args.provider or 'codex', auth=args.auth or 'cli',trace=bool(args.trace))
+        report = evaluate(
+            args.output,
+            live=args.live,
+            provider=args.provider,
+            model=args.model,
+            auth=args.auth,
+            trace=args.trace,
+        )
         write_json(args.output, report)
         print(json.dumps(report, indent=2))
-        return 0 if report['passed'] else 2
+        return 0 if report["passed"] else 2
     except (ValueError, RuntimeError, OSError, KeyError) as exc:
-        print(f'Blocked: {exc}', file=sys.stderr)
+        print(f"Blocked: {exc}", file=sys.stderr)
         return 2
     except KeyboardInterrupt:
-        print('Cancelled. Existing artifacts are preserved.', file=sys.stderr)
+        print("Cancelled. Existing artifacts are preserved.", file=sys.stderr)
         return 130
-
-
-if __name__ == '__main__':
-    raise SystemExit(main())

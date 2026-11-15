@@ -1,102 +1,88 @@
 # Outcome-led XP pair runtime
 
-This branch implements the initial bounded replacement described in the [redesign plan](xp-ping-pong-redesign-plan.md). Pairing is the default; the legacy interactive/batch interfaces remain explicitly available. Scripted production integration is verified; live-provider qualification is separately limited below.
+## Start a session
+
+From the agent checkout, pass the project directory and a desired outcome. The pair also accepts an empty project directory for a new Python module. If you omit `--goal`, the terminal prompts for it. If you omit the path, the current directory is used.
+
+```sh
+uv run --frozen xp-agent pair /path/to/project --goal 'Describe one behavior and an example'
+```
+
+For a Git project, start from a clean tracked baseline. The session copies safe tracked text files and omits untracked files. A non-Git project is scanned directly. Existing tests must pass at baseline. An empty project starts without baseline tests. The image must contain the target project's dependencies before the run. [Security boundaries](security.md)
+
+Session creation writes the private snapshot before the first prompt. Type `confirm` to authorize model calls and Docker tests for the displayed outcome, `reject` to end the session, or enter a clarification to revise the displayed outcome. On a business question, answer it or use `continue` to ask the pair to proceed with the current agreement. On a working demo, type `accept` to finish, `continue` for another increment, or explain what should change.
 
 ## Production graph routing
 
-`xp_agent/pairing/graph.py` owns the phase transitions and actor selection. Agent A authors the first test, B implements it; after green/cleanup, B authors the next test and A implements. Candidate tests run in a separate graph node. Neither partner chooses who acts next. Business feedback uses an actual LangGraph interrupt.
-
 ```mermaid
 flowchart TD
-    Goal["User supplies an outcome"] --> Confirm["Restate and confirm with the user"]
-    Confirm --> Baseline["Inspect the safe snapshot and baseline"]
+    Snapshot["Create private snapshot"] --> Confirm["Confirm outcome"]
+    Confirm --> Baseline["Check existing tests in Docker"]
     Baseline --> Discuss["A and B discuss the next behavior"]
-    Discuss --> Propose["Graph assigns actor and phase"]
-    Propose --> Tests["Run candidate tests in Docker"]
-    Tests --> Missing{"Missing symbols during red?"}
-    Missing -->|"Yes"| Scaffold["Other partner adds controlled scaffolding"]
-    Scaffold --> Tests
-    Missing -->|"No"| Gate{"Phase requirement satisfied?"}
-    Gate -->|"No"| Retry{"Attempts and time remain?"}
-    Retry -->|"Yes"| Propose
-    Retry -->|"No"| Stop["Stop with retained partial work"]
-    Gate -->|"Yes"| Accept["Controller accepts files and records evidence"]
-    Accept --> Cycle{"Cleanup and cycle complete?"}
-    Cycle -->|"No: green or cleanup next"| Propose
-    Cycle -->|"Yes"| Rotate["Rotate test author and implementer"]
-    Rotate --> Due{"Demo or check-in due?"}
-    Due -->|"No"| Discuss
-    Due -->|"Yes"| Demo["Execute examples or report partial progress"]
-    Discuss -->|"Business question or ready to demonstrate"| Demo
-    Propose -->|"Business question"| Demo
-    Demo --> User["LangGraph interrupts for user feedback"]
-    User -->|"Continue or clarify"| Discuss
-    User -->|"Accept a working demo"| Deliver["Commit snapshot result and retain the patch"]
+    Discuss -->|"Need business input"| Feedback["Pause for user feedback"]
+    Discuss -->|"Propose next step"| Propose["Graph selects test author or implementer"]
+    Propose -->|"Need business input"| Feedback
+    Propose -->|"Candidate files"| Test["Run candidate tests in Docker"]
+    Test -->|"Missing module or symbol during red"| Scaffold["Implementer proposes minimal scaffolding"]
+    Scaffold -->|"Assertion failure verified"| Test
+    Scaffold -->|"Test still errors or passes and retries remain"| Scaffold
+    Test -->|"Report available"| Gate{"Phase gate passed?"}
+    Gate -->|"No and retries remain"| Propose
+    Gate -->|"No and limit reached"| Stop["Stop with partial work retained"]
+    Scaffold -->|"Invalid edits or limit reached"| Stop
+    Gate -->|"Yes"| Advance{"Cycle complete?"}
+    Advance -->|"Green or refactor next"| Propose
+    Advance -->|"Yes"| Rotate["Swap test author and implementer"]
+    Rotate -->|"Next increment"| Discuss
+    Rotate -->|"Demo due"| Demo["Run examples against accepted code"]
+    Demo --> Feedback
+    Feedback -->|"Answer, continue, or clarify"| Discuss
+    Feedback -->|"Accept a working demo"| Deliver["Commit snapshot and write patch"]
 ```
 
-Provider failures, invalid infrastructure, failed scaffolding and exhausted resource limits can stop execution directly. These exception paths preserve the accepted snapshot; they do not produce a verified result. Discussion and code-generation requests are serialized, and retries stay with the assigned actor.
+| Step | What the controller accepts |
+| --- | --- |
+| Discuss | The partners share their interpretation and the next small step. A structured business question pauses the graph at that point. |
+| Red | Append assertion-based tests. A new test fails by assertion and every prior required test still passes. |
+| Bootstrap | If red fails due to a missing module or symbol, the implementer can supply minimal source scaffolding that preserves existing source statements and test content. Docker must then report a real assertion failure. When a scaffold runs but fails the gate, the same partner receives the pytest result and can retry within the limits. |
+| Green | The other partner changes source. The runner must pass the new test and prior tests without errors or skips. |
+| Refactor | The implementer may clean up source or explain why cleanup is unnecessary. The tests must still pass. |
+| Demo | The controller executes proposed examples in Docker. The terminal shows observed and expected values, then waits for your response. |
 
-The same `build_graph` function is used by the runtime and the conformance adapter. `ProbeOperations` replaces partner/runner operations with instrumented doubles, not a separate passing reference graph. The production routing passes the existing compiled-graph probe for normal role reversal, premature-green rejection, failed-green rejection, business interrupt and resume.
+A writes red and B handles green and refactor on cycle one. They switch on the next cycle and keep alternating. Discussion requests are sequential. Each request includes the assigned role, prior visible messages from both partners, the business agreement, project files, and execution feedback when available. Provider processes are fresh. The conversation continues through explicit replay from the checkpoint, which stores visible messages. [Code walkthrough](how-it-works.md)
 
-The probe runner originally reused a test identity across cycles. Production red validation correctly rejected that as a regression. Its controlled reports now preserve prior passing identities and introduce a distinct failing identity per cycle.
+## Settings and limits
 
-The routing probe alone does not demonstrate model coding or a correct Money result. The production integration below adds workspace, conversation and independent result evidence. SQLite checkpoint support is installed for durable local sessions.
+| Option | Default | What it controls |
+| --- | --- | --- |
+| `--provider`, `--model`, `--auth` | Codex, `gpt-6-luna`, `cli` | Both partners use this configuration. Claude Code defaults to `haiku` when selected without a model. |
+| `--budget` | 900 seconds | Active model and test execution time. Waiting at a prompt is excluded. Model calls are capped at 180 seconds and test invocations at 60 seconds or the time remaining, whichever is lower. |
+| `--attempts` | 2 | Attempt limit for a coding phase and for scaffold candidates whose test reports fail the bootstrap gate. Provider, infrastructure, and structural scaffold errors can stop the run immediately. |
+| `--max-cycles` | 12 | Maximum TDD cycles before the pair stops or presents its final increment. |
+| `--demo-every` | 2 cycles | Default demo cadence. A partner can request an earlier demo. The graph also checks for feedback after 300 active seconds at a phase boundary. |
+| `--output` | New directory under the state root | Use a fresh path to choose where the session and artifacts are stored. |
+| `--trace` | Off | Record metadata and attempt export to local Langfuse for this invocation. |
 
-## Partners, code and durable business boundaries
+Project snapshots are capped at 400 KB. Partner requests are capped at 480,000 bytes including history and stop when that limit is reached. During a time-based check-in mid-cycle, the terminal can report partial progress and ask for feedback. Acceptance requires a working demo. Clarifications can revise the agreed behavior, while accepted tests remain protected by the edit gates. [Provider options](providers.md) · [Tracing setup](tracing.md)
 
-Two `Partner` objects have fixed A/B identities. Each request includes that partner's continuing conversation from graph state, the current source snapshot, the agreement revision and actual execution feedback. Provider processes may be fresh, but the application replays accumulated conversation instead of resetting the partner's history. Finite context limits stop explicitly rather than silently truncate.
+## Review the result or resume
 
-`Operations` mediates all edits. Tests are append-only during red; green and cleanup cannot change accepted tests. A controlled bootstrap path handles missing modules/symbols: source scaffolding must preserve existing source and leave an actual assertion failure before green can begin. Project code and demonstrations execute only in Docker.
+The terminal prints the session directory. By default it lives under `${XDG_STATE_HOME:-$HOME/.local/state}/xp-coding-agent/pairs/`.
 
-`Session` uses SQLite LangGraph checkpoints and a session writer lock. Business interrupts can be resumed through new database connections. The original project is captured into a private snapshot repository; accepted output is committed there for manual integration. This initial pair flow uses snapshots, not linked worktrees, and never writes the original project.
+| Artifact | Contents |
+| --- | --- |
+| `workspace/` | Private Git repository with the accepted snapshot. Work is committed there on acceptance. |
+| `changes.patch` | Diff from the snapshot baseline, written on acceptance for manual review and integration. |
+| `result.md` and `pair-result.json` | Result, phase, cycle, remaining budget, workspace path, and evidence grade. |
+| `pair-manifest.json` and `checkpoints.sqlite` | Startup settings and durable LangGraph state used for continuation. |
+| `pair-state.json`, `pair-evidence.json`, and `pair-contract-grade.json` | Private state, versioned accepted transitions and snapshots, and their offline grade. |
 
-The scripted Money integration builds multiplication, reusable values and exact USD/CHF addition from an empty project through the production graph. It observes A-red/B-green, B-red/A-green, then A-red/B-green, executes real demonstrations, and passes all 33 independent Money acceptance checks. Scripted partners supply known proposals; this verifies runtime wiring, not live model coding quality. Business-boundary reopening and evaluator binding are covered below; arbitrary crash-window recovery remains unqualified.
-
-## Interactive product and evaluator wiring
-
-The default `xp-agent`/`xp-coding-agent` entry point now starts the pair interface. Explicit `pair` is equivalent; `repl`, `plan` and `run` retain legacy behavior. Confirm the desired outcome, correct it if necessary, and respond to working demos with `accept`, `continue` or clarification. There is no upfront implementation-plan gate. No partner request or project test executes before confirmation.
-
-Start a goal:
+Resume from a waiting prompt using the printed directory. Use `--trace` again if you want traces for the resumed invocation.
 
 ```sh
-xp-agent pair /path/to/project --goal 'Desired behavior'
+uv run --frozen xp-agent pair --resume /path/to/pair-session
 ```
 
-Resume a printed session path:
+SQLite restores the pending question or demo, conversation, provider settings, and remaining budgets. The CLI binds each reply to the interrupt it displayed. Reopening a terminal `blocked` session returns the recorded result. Start a fresh session after resolving the failure if you need to try the goal again. An interruption during a hosted request can repeat that request on recovery, so business prompts are the tested resume boundary. [Recorded validation](evaluation.md)
 
-```sh
-xp-agent pair --resume /path/to/private-session
-```
-
-The user-facing Money evaluation runs the **same production graph**:
-
-```sh
-umask 022
-uv run --frozen --extra tracing xp-agent eval --pair --output eval-results/pair.json
-# Real hosted coding requires authorized provider access; this is not an LLM judge:
-uv run --frozen --extra tracing xp-agent eval --pair --live --output eval-results/pair-live.json
-```
-
-The deterministic run uses two scripted partner objects, actual graph routing, SQLite checkpoints, workspace writes, Docker test gates and executed demos. It then independently grades the actual accepted-transition records and runs all 33 Money acceptance checks. It also executes the production graph conformance probe for normal handoff and rejected red/green gates. Reports distinguish these dimensions from live model coding.
-
-Evidence schema version 2 models bootstrap explicitly. Its source changes preserve existing source AST statements and accepted tests; an independently run pending test must still fail by assertion. Bootstrap does not advance the TDD phase. The original test author's history honestly precedes scaffolding; later turns receive its recorded outcome. Empty initial snapshots are allowed without pretending that zero tests passed. Schema version 1 remains supported unchanged.
-
-A business response is bound to the displayed interrupt token, preventing a stale terminal from approving a different pending question/demo. Session reopening tests use fresh partner objects and verify conversation delivery, role preservation, remaining budgets and an unchanged final patch on repeated reads.
-
-## Demonstrations, tracing and resource limits
-
-Demos run examples in Docker against the accepted source revision. The business user sees labels, observed primitive results and expected results. Model prose is not substituted for execution. Failed examples block the demo. Clarifications are recorded in both continuing histories and agreement revisions; they do not replenish budgets or authorize test weakening.
-
-A demo is requested after two completed cycles by default, when a partner believes the goal is ready, or at a bounded active-time check-in. A partial cycle is reported as partial progress, not a working increment. The initial test policy remains deliberately strict: tests can be appended, not weakened or rewritten. Contradictory business revisions that require changing accepted tests may need a new session; guarded test/interface evolution is still future work.
-
-`--trace` enables the existing local Langfuse exporter. Pair generation/test observations use the safe actor and pair-mode metadata fields; full conversations, source and business text remain in private local session files. Ordinary export failures warn without falsifying code results. Pair eval traces include deterministic ownership/handoff/independent-acceptance scores, with fresh readback tested separately from coding checks.
-
-The budget counts model and execution time, not user waiting. Context is bounded and replayed explicitly; hidden provider reasoning is not preserved or claimed. A process killed inside an external model call can repeat that request on recovery and consume quota. Tested restart behavior covers business boundaries, not every possible crash window. The controller rejects unexplained workspace changes and serializes session advancement with a writer lock.
-
-## Current limits and provider transport
-
-This is a bounded trusted Python/pytest prototype: safe text snapshots up to 400 KB, prepared dependencies, one approved project and one writer. It does not provision dependencies, launch arbitrary host commands, automatically merge/deploy, support general service projects, or prove hostile-code safety. Pair delivery currently uses independent snapshot repositories even for Git projects.
-
-Both partners use the selected provider/model/auth mode, pinned in the session manifest; no fallback occurs. Saved credentials stay with the provider CLI. The transport preserves system proxy/CA settings, while continuing to exclude unapproved provider base-URL overrides and unrelated API keys. TLS verification and model tool restrictions remain enabled.
-
-During this environment's qualification, the Codex CLI reported a saved ChatGPT login, but its synthetic request did not complete and an unauthenticated connection to `chatgpt.com` was explicitly denied by the cloud proxy. A narrow domain addition was saved in the environment draft; saving does not apply the running network policy. Live Money qualification remains blocked until provider access is usable. No successful live coding result is inferred from the scripted integration.
+On failure, review the terminal reason and the private `pair-state.json`. A scaffold error means the pending test either errored, passed too early, skipped, or failed to preserve the required tests. Recent versions include counts and retain pytest feedback. A Docker error about a missing bind source can mean the session directory is outside the paths shared with the Docker VM. Use `--output` with a fresh path in a shared directory. [Cloud setup](../environment/README.md) · [Provider troubleshooting](providers.md#diagnose-or-qualify-a-provider)

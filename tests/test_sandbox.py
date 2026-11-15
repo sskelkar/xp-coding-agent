@@ -2,7 +2,8 @@ import os
 import pytest
 from xp_agent.sandbox import DockerRunner
 
-pytestmark = pytest.mark.skipif(os.getenv('XP_DOCKER_TESTS') != '1', reason='Set XP_DOCKER_TESTS=1 for real isolation checks')
+pytestmark = pytest.mark.skipif(os.getenv('XP_DOCKER_TESTS') != '1',
+                                reason='Set XP_DOCKER_TESTS=1 for real isolation checks')
 
 
 def test_actual_container_runs_assertions_and_reports_errors():
@@ -10,7 +11,8 @@ def test_actual_container_runs_assertions_and_reports_errors():
     red = runner.test({'test_case.py': 'def test_missing_behavior():\n    assert 2 == 4\n'}, 30)
     assert red['failed'] == ['test_case.py::test_missing_behavior']
     assert not red['errors']
-    broken = runner.test({'test_case.py': 'def test_error():\n    raise RuntimeError("broken setup")\n'}, 30)
+    broken = runner.test(
+        {'test_case.py': 'def test_error():\n    raise RuntimeError("broken setup")\n'}, 30)
     assert broken['errors']
     assert not broken['failed']
 
@@ -40,9 +42,13 @@ def test_hung_container_is_removed():
 
 
 def test_collection_skips_are_visible_to_xp_gates():
-    from xp_agent.workflow import passing
-    files = {'test_ok.py': 'def test_ok():\n    assert True\n',
-             'test_optional.py': 'import pytest\npytest.skip("missing prerequisite", allow_module_level=True)\n'}
+    from xp_agent.pairing.controller import tests_pass
+    files = {
+        'test_ok.py':
+        'def test_ok():\n    assert True\n',
+        'test_optional.py':
+        'import pytest\npytest.skip("missing prerequisite", allow_module_level=True)\n'
+    }
     report = DockerRunner().test(files, 30)
     assert report['skipped']
-    assert not passing(report)
+    assert not tests_pass(report)

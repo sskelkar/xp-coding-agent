@@ -363,54 +363,6 @@ else:raise SystemExit('Langfuse readiness or local project authentication failed
 PY
 
 START_LANGFUSE
-cat > /workspace/.cloud-setup/langfuse/audit.py <<'AUDIT_LANGFUSE'
-import base64,json,time,urllib.request
-from pathlib import Path
-root=Path('/workspace/.cloud-setup/langfuse')
-keys=dict(line.split('=',1) for line in (root/'agent.env').read_text().splitlines())
-auth=base64.b64encode((keys['LANGFUSE_PUBLIC_KEY']+':'+keys['LANGFUSE_SECRET_KEY']).encode()).decode()
-opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
-def get(path):
- r=urllib.request.Request('http://127.0.0.1:4000/api/public/'+path,headers={'Authorization':'Basic '+auth})
- with opener.open(r,timeout=20) as f:return json.load(f)
-def all_rows(path):
- import urllib.parse
- rows=[];cursor=None
- while True:
-  query='limit=100'+('&cursor='+urllib.parse.quote(cursor) if cursor else '')
-  d=get(path+('&' if '?' in path else '?')+query); rows+=d['data']
-  cursor=d.get('meta',{}).get('cursor')
-  if not cursor:return rows
-observations=all_rows('v2/observations?fields=basic,metadata,io')
-scores=all_rows('v3/scores')
-traces={o['traceId'] for o in observations}
-serialized=json.dumps(observations)
-for value in keys.values():assert value not in serialized,'Credential found in stored observations'
-for value in ('def double','test_calc.py','/workspace/xp-coding-agent'):
- assert value not in serialized,'Private fixture content found in stored observations'
-assert len(traces)>=13, 'Missing experiment traces'
-assert any(o.get('name')=='run-tests' for o in observations),'Missing real test-runner observations'
-assert any(s.get('name')=='suite_passed' and s.get('value')==1 for s in scores),'Missing passing suite gate'
-assert any(s.get('name')=='tdd_sequence' and (s.get('stringValue')=='complete' or s.get('value')=='complete') for s in scores),'Missing complete TDD score'
-by_id={o['id']:o for o in observations}
-from datetime import datetime
-for o in observations:
- parent=o.get('parentObservationId')
- if not parent:continue
- assert parent in by_id, 'Stored observation parent missing'
- p=by_id[parent]
- assert p['traceId']==o['traceId'], 'Parent belongs to a different trace'
- if p.get('endTime') and o.get('endTime'):
-  assert p['startTime']<=o['startTime']<=o['endTime']<=p['endTime'], 'Stored timing hierarchy invalid'
-sessions={}
-for o in observations:
- if o.get('sessionId'):sessions.setdefault(o['sessionId'],set()).add(o['name'])
-assert any({'xp.plan','xp.execute'}<=names for names in sessions.values()), 'Missing plan/execution session grouping'
-summary={'traces':len(traces),'observations':len(observations),'scores':len(scores),'privacy_checks_passed':True,'suite_gate_passed':True,'complete_tdd_score_retrieved':True,'parent_timing_checks_passed':True,'plan_execution_session_grouping_verified':True}
-(root/'audit-summary.json').write_text(json.dumps(summary,indent=2))
-print(json.dumps(summary))
-
-AUDIT_LANGFUSE
 uv run --frozen --extra tracing python /workspace/.cloud-setup/prepare-langfuse.py
 docker compose -p xp-langfuse -f /workspace/.cloud-setup/langfuse/compose.yml --env-file /workspace/.cloud-setup/langfuse/.env pull
 bash /workspace/.cloud-setup/langfuse/start.sh

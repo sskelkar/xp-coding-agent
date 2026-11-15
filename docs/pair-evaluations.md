@@ -1,6 +1,27 @@
-# Evaluating the proposed XP pair workflow
+# Evaluating the XP pair workflow
 
-This is the first executable evaluation foundation for the [redesign plan](xp-ping-pong-redesign-plan.md). The default pair runtime is now wired to these tools; see the [runtime guide](pair-runtime.md). Standalone offline grading and reference-graph probes do not by themselves qualify a product runtime. No LLM judge is used. Standalone graders and scripted evals make no hosted model calls; the explicit runtime `eval --pair --live` option does.
+The pair evaluation runs production routing, grades accepted transitions, and checks candidate behavior in Docker. The `--live` option uses the selected hosted model. Graders apply deterministic checks. See the [runtime guide](pair-runtime.md).
+
+## Choose the check you want to run
+
+Run these commands from the agent checkout after building the test image. Use the scripted command to check the graph, controller, and Docker setup without provider credentials.
+
+```sh
+uv run --frozen xp-agent eval --output eval-results/pair.json
+```
+
+To evaluate a hosted model with an authorized account, choose one provider and sign in to its CLI. These runs use a synthetic task and consume quota.
+
+```sh
+uv run --frozen xp-agent eval --live --provider codex --auth cli --output eval-results/codex.json
+uv run --frozen xp-agent eval --live --provider claude --auth cli --output eval-results/claude.json
+```
+
+Add `--model` to select an account-supported model. Add `--trace` after installing the tracing extra and configuring local Langfuse. [Provider options](providers.md) · [Tracing setup](tracing.md)
+
+The CLI returns exit code 0 when all required checks pass, or 2 for an incomplete, blocked, or failed evaluation. The JSON report has `mode`, `status`, `observed_roles`, and separate results for graph probes, the transition grade, and independent Money acceptance. `verification.live_model_coding` is true only for a passing hosted run. An unanswered business question ends the automated scenario without inventing an answer, and `money_acceptance` can be empty when the run stops before acceptance.
+
+The report points to the private session directory alongside the report. That directory contains the checkpoints, candidate workspace, and source-bearing evidence. [Session artifacts](pair-runtime.md#review-the-result-or-resume) · [Recorded validation](evaluation.md)
 
 ## What is implemented
 
@@ -11,13 +32,12 @@ This is the first executable evaluation foundation for the [redesign plan](xp-pi
 5. A compiled-LangGraph conformance probe with instrumented partner and runner ports, real checkpoint interrupts/resume, and deliberately broken reference graphs.
 6. Tests of the evaluators with deliberately corrupted records and real candidate code.
 
-Run commands from the agent checkout. The test image must already exist; prepare it with the repository/environment setup instructions. Use `umask 022` in the managed cloud environment so container UID 65534 can read generated fixture directories.
+In the managed cloud environment, use `umask 022` so container UID 65534 can read generated fixture directories. [Cloud setup](../environment/README.md)
 
 ## Inspect the scenario catalog
 
 ```sh
-UV_CACHE_DIR=/workspace/.cache/uv uv run --frozen --extra tracing \
-  python -m xp_agent.pair_evals catalog
+uv run --frozen python -m xp_agent.evaluation.pair catalog
 ```
 
 The catalog deliberately reports scenarios and remaining qualification scenarios as `not_run`, with `runtime_ready: false`. Implemented capabilities are listed separately; the catalog itself executes no checks. Listing scenarios is a successful CLI operation (exit 0), not a passing evaluation.
@@ -25,8 +45,7 @@ The catalog deliberately reports scenarios and remaining qualification scenarios
 ## Grade controller records
 
 ```sh
-UV_CACHE_DIR=/workspace/.cache/uv uv run --frozen --extra tracing \
-  python -m xp_agent.pair_evals grade evals/fixtures/pair/valid-records.json \
+uv run --frozen python -m xp_agent.evaluation.pair grade evals/fixtures/pair/valid-records.json \
   --output eval-results/pair-record-grading.json
 ```
 
@@ -57,7 +76,7 @@ Runner reports contain `revision`, integer `returncode`, and lists of test ident
 
 Optional `active_seconds` must be finite, nonnegative and monotonically increasing. With these timestamps supplied, work after the 300-second active-development boundary requires feedback. Cycle cadence defaults to three completed cycles between responses. `active_time_evidence: false` explicitly identifies records that cannot establish time-based cadence. Context IDs/history references establish only declared history delivery, not that models retained or used that information.
 
-Snapshots and reports must be collected from the controller, with execution bindings independently established by the future integration harness. This grader checks consistency of supplied records, not their authenticity. Likewise it compares supplied demo samples; it does not execute them. Source-bearing records and histories must stay private. The grader emits verdicts and counts, not snapshots or conversations.
+The integrated evaluation collects snapshots and reports from the running controller. The standalone grader can check the consistency of supplied records and compare their demo samples. Authenticating those records or independently running the supplied demos is outside its scope. Keep source-bearing records and histories private. The grader emits verdicts and counts.
 
 Unknown event kinds and malformed/missing records fail closed as `insufficient_evidence`. Schema version 1 does **not** model rejected proposal attempts, controlled scaffolding, guarded test adaptation, crash-boundary recovery or actual scheduling. Version 2 adds controlled bootstrap as described below; other limitations remain. Duplicate accepted action IDs are detected, but this alone is not proof of exactly-once recovery. Do not silently discard unsupported events to obtain a pass.
 
@@ -69,18 +88,11 @@ A `bootstrap` record identifies its actor, cycle, agreement, before/after source
 
 Version 2 records can include `dispatch_active` separately from accepted-event time so a phase that crosses the time boundary is distinguished from dispatching new work after it. Runtime records grade accepted transitions; rejected-candidate detail and full private conversations are retained in session history/checkpoints, not represented as a complete crash audit by this grader. No LLM judge interprets the records.
 
-Run the integrated check with:
-
-```sh
-umask 022
-uv run --frozen --extra tracing xp-agent eval --pair --output eval-results/pair.json
-```
-
-It executes the production graph with scripted partners, real Docker source/test generation and business demos, grades the resulting version-2 records and independently runs all 33 Money checks. `verification` separates routing, real execution, record grading and live model coding. Add `--trace` for local Langfuse metadata and `--live` only for an authorized provider run. A scripted pass is not a live coding pass.
+The integrated check uses scripted proposals by default, executes tests and business demos in Docker, grades the resulting version-2 records, and independently runs all 33 Money checks.
 
 ## Validate actual LangGraph handoffs without an LLM judge
 
-`xp_agent.pair_evals.graph_probe.probe_graph(factory, scenario=...)` runs a real
+`xp_agent.evaluation.pair.graph_probe.probe_graph(factory, scenario=...)` runs a real
 `CompiledStateGraph`, not an event list. The factory receives instrumented
 partner/runner ports and returns the compiled graph under test with a checkpointer.
 The graph, not the probe, chooses the next node and partner. The probe records
@@ -105,11 +117,11 @@ An exclusive instrumentation lease detects overlapping calls; an attempted overl
 fails the probe, even though instrumentation prevents the second stub from running.
 This tests invocation ordering, not host-file write isolation.
 
-The reference graphs in `tests/test_pair_graph_probe.py` demonstrate that the probe
+The reference graphs in `tests/evaluation/test_pair_graph_probe.py` demonstrate that the probe
 passes valid scheduling and fails wrong actors, skipped runner calls, ignored red/
 green outcomes, absent business interrupts, extra work after feedback and concurrent
 partner calls. **These are evaluation-only graphs, not the replacement product.**
-The production pair graph has a separate adapter at `xp_agent.pairing.graph.probe_factory`. It calls the same `build_graph` as real sessions, replacing dependencies, not routing. The legacy single-agent graph is not passed off as a pair graph.
+The production pair graph has a separate adapter at `xp_agent.evaluation.pair.graph_probe.probe_factory`. It calls the same `build_graph` as real sessions, replacing dependencies, not routing.
 
 A runtime adapter must exercise its actual compiled
 routing with these instrumented dependencies. Rebuilding the passing reference graph
@@ -138,8 +150,7 @@ Stages are cumulative:
 
 ```sh
 umask 022
-UV_CACHE_DIR=/workspace/.cache/uv uv run --frozen --extra tracing \
-  python -m xp_agent.pair_evals money /path/to/toy-candidate \
+uv run --frozen python -m xp_agent.evaluation.pair money /path/to/toy-candidate \
   --stage reusable --output eval-results/money-acceptance.json
 ```
 
@@ -155,10 +166,9 @@ A passing Money result proves only that this candidate passed the selected indep
 
 ```sh
 umask 022
-UV_CACHE_DIR=/workspace/.cache/uv XP_DOCKER_TESTS=1 \
-  uv run --frozen --extra tracing pytest \
-  tests/test_pair_contracts.py tests/test_pair_money.py tests/test_pair_eval_cli.py \
-  tests/test_pair_graph_probe.py -q
+XP_DOCKER_TESTS=1 uv run --frozen pytest \
+  tests/evaluation/test_pair_contracts.py tests/evaluation/test_pair_money.py tests/evaluation/test_pair_eval_cli.py \
+  tests/evaluation/test_pair_graph_probe.py -q
 ```
 
 The Docker tests require the existing `xp-agent-tests:0.1` image. Without `XP_DOCKER_TESTS=1`, they are explicitly skipped; do not report that run as independent acceptance validation.

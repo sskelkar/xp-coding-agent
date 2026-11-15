@@ -38,9 +38,9 @@ sys.exit(int(code))
 
 
 class DockerRunner:
-    def __init__(self, image='xp-agent-tests:0.1', scratch=None, status=None):
+
+    def __init__(self, image='xp-agent-tests:0.1', scratch=None):
         self.image = image
-        self.status = status
         self.scratch = Path(scratch or Path.cwd() / '.xp-runs' / 'scratch').resolve()
         self.scratch.mkdir(parents=True, exist_ok=True, mode=0o700)
 
@@ -56,16 +56,17 @@ class DockerRunner:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text(content)
                 target.chmod(0o444)
-            args = ['docker', 'run', '--rm', '--name', name, '--pull=never',
-                    '--network=none', '--read-only', '--cap-drop=ALL',
-                    '--security-opt=no-new-privileges', '--pids-limit=64',
-                    '--memory=256m', '--cpus=1', '--user=65534:65534',
-                    '--tmpfs=/tmp:rw,noexec,nosuid,size=32m',
-                    '--mount', f'type=bind,src={workspace},dst=/workspace,readonly',
-                    '-e', 'PYTEST_DISABLE_PLUGIN_AUTOLOAD=1', '-e', 'PYTHONDONTWRITEBYTECODE=1',
-                    '-w', '/workspace', '--entrypoint', 'python', self.image, '-c', HARNESS]
+            args = [
+                'docker', 'run', '--rm', '--name', name, '--pull=never', '--network=none',
+                '--read-only', '--cap-drop=ALL', '--security-opt=no-new-privileges',
+                '--pids-limit=64', '--memory=256m', '--cpus=1', '--user=65534:65534',
+                '--tmpfs=/tmp:rw,noexec,nosuid,size=32m', '--mount',
+                f'type=bind,src={workspace},dst=/workspace,readonly', '-e',
+                'PYTEST_DISABLE_PLUGIN_AUTOLOAD=1', '-e', 'PYTHONDONTWRITEBYTECODE=1', '-w',
+                '/workspace', '--entrypoint', 'python', self.image, '-c', HARNESS
+            ]
             try:
-                result = run(args, timeout=min(timeout, 60), tick=self.status)
+                result = run(args, timeout=min(timeout, 60))
             finally:
                 # Killing docker's client does not terminate its container.
                 cleanup = run(['docker', 'rm', '-f', name], timeout=10)

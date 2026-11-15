@@ -21,18 +21,22 @@ def test_red_cannot_change_production_and_green_cannot_change_tests():
     with pytest.raises(PolicyError):
         validate_edits('red', files, {'calc.py': 'x = 2\n'}, ['calc.py'], ['test_calc.py'])
     with pytest.raises(PolicyError):
-        validate_edits('green', files, {'test_calc.py': 'def test_old():\n    pass\n'}, ['calc.py'], ['test_calc.py'])
+        validate_edits('green', files, {'test_calc.py': 'def test_old():\n    pass\n'}, ['calc.py'],
+                       ['test_calc.py'])
 
 
 def test_red_preserves_existing_test_ast_and_requires_new_assertion():
     old = 'def test_old():\n    assert 1 == 1\n'
     valid = old + '\ndef test_new():\n    assert 2 == 3\n'
-    assert validate_edits('red', {'test_calc.py': old}, {'test_calc.py': valid}, [], ['test_calc.py'])
+    assert validate_edits('red', {'test_calc.py': old}, {'test_calc.py': valid}, [],
+                          ['test_calc.py'])
     with pytest.raises(PolicyError):
-        validate_edits('red', {'test_calc.py': old}, {'test_calc.py': 'def test_old():\n    assert True\n'}, [], ['test_calc.py'])
+        validate_edits('red', {'test_calc.py': old},
+                       {'test_calc.py': 'def test_old():\n    assert True\n'}, [], ['test_calc.py'])
 
 
-@pytest.mark.parametrize('path', ['../escape.py', '/tmp/x.py', '.git/config', '.env', 'profiles/private.json'])
+@pytest.mark.parametrize(
+    'path', ['../escape.py', '/tmp/x.py', '.git/config', '.env', 'profiles/private.json'])
 def test_forbidden_edit_paths(path):
     with pytest.raises(PolicyError):
         validate_edits('green', {}, {path: 'x'}, [path], [])

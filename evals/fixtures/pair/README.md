@@ -4,9 +4,10 @@
 record grader. Placeholder source snapshots and declared runner reports are not
 real two-agent execution evidence. Do not use this fixture as a runtime pass.
 
-Business scripts live in `xp_agent/pair_evals/scenarios.py`; the Money oracle is
-inserted separately by `xp_agent/pair_evals/money.py` inside Docker. Neither should
-be copied into a coding partner's candidate workspace as solution guidance.
+The [scenario catalog](../../../xp_agent/evaluation/pair/scenarios.py) describes
+the Money business scenarios. The [Money evaluator](../../../xp_agent/evaluation/pair/money.py)
+runs its acceptance tests inside Docker, separately from the coding pair's
+own tests.
 
 See [evaluation tools](../../../docs/pair-evaluations.md) for commands, the schema,
 limitations, and runtime checks that remain unrun.
