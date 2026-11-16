@@ -1,0 +1,20 @@
+docs/how-it-works.md
+  s_524d2e425a021f::t_343b39e9d9eac8 11-51,53-55,62,65-68,70-72,74-95
+  s_524d2e425a021f::t_cd26b0345fc2af 52,56-61,63-64,69,73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a33f1e7b6007bd91d7c08ffef3a3cd02ddd5fc84",
+  "prompts": {},
+  "sessions": {
+    "s_524d2e425a021f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1df83-2230-7fb3-a5ba-61aea501c46a",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "sskelkar <sojjwal.kelkar@deliveryhero.com>"
+    }
+  }
+}
